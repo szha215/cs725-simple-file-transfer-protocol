@@ -30,16 +30,18 @@ public class Client {
 		while(true) {
 			System.out.println(readMessage(inFromServer));
 			sentence = inFromUser.readLine();
-			outToServer.writeBytes(sentence + "\n\0");
+			sendMessage(outToServer, sentence);
 			
 //			System.out.println(inFromServer.readLine());
 //			sentence = inFromUser.readLine();
 //			outToServer.writeBytes(sentence + '\n');
 //			
 //			sentence = inFromServer.readLine();
-			if (sentence.equals("EXIT")) {
-				System.out.println("EXIT");
-				break;
+			if (sentence.equals("DONE")) {
+				if (readMessage(inFromServer).charAt(0) == '+') {
+					System.out.println("DONE, closing socket");
+					break;
+				}
 			} else {
 				System.out.println(sentence);
 			}
@@ -54,7 +56,7 @@ public class Client {
 	 * @param buffer	The BufferedReader object associated with the socket.
 	 * @return sentence	Complete message String, without the '\0' character.
 	 * */
-	private static String readMessage(BufferedReader buffer) {
+	private String readMessage(BufferedReader buffer) {
 		String sentence = "";
 		int character = 0;
 		
@@ -83,7 +85,7 @@ public class Client {
 	 * @param stream	The DataOutputStream object associated with the socket.
 	 * @param sentence	Complete message String, without the '\0' character.
 	 * */
-	private static void sendMessage(DataOutputStream stream, String sentence) throws IOException{
+	private void sendMessage(DataOutputStream stream, String sentence) throws IOException{
 		stream.writeBytes(sentence.concat(Character.toString('\0')));
 	}
 	
