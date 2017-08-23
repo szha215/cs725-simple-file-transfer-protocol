@@ -15,7 +15,7 @@ John Zhang - szha215 - 8605362
 
 ### Log in
 
-There are currently 3 pre-loaded accounts for testing, stored in `res/userlist.json`. 
+There are currently 4 pre-loaded accounts for testing, stored in `res/userlist.json`. 
 
 ```reStructuredText
 User ID: AA
@@ -27,6 +27,12 @@ Password: 11
 User ID: BB
 Account: bb
 Password: 22
+```
+
+```reStructuredText
+User ID:
+Account: cc
+Password: 33
 ```
 
 ```reStructuredText

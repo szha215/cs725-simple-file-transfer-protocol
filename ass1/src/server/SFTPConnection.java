@@ -3,30 +3,26 @@ package server;
 import java.io.*;
 import java.net.*;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 
 import org.json.simple.*;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 
 public class SFTPConnection extends Thread{
 	
-	private Socket connectionSocket;
 	private BufferedReader inFromClient;
 	private DataOutputStream outToClient;
 	
 	private JSONArray userList;
+
 	private ArrayList<JSONObject> potentialMatches;
+
 	private boolean accountAuthenticated = false;
 	private boolean passwordAuthenticated = false;
-	
 	private boolean authenticated = false;
 	
 	
 	SFTPConnection(Socket connectionSocket, JSONArray userList) throws IOException{
-		this.connectionSocket = connectionSocket;
 		this.userList = userList;
 		
 		inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
@@ -40,11 +36,11 @@ public class SFTPConnection extends Thread{
 	public void run() {
 		String clientSentence = "";
 		
-		sendMessage("+MIT-XX SFTP Service");
+		// Send greeting 
+		sendMessage("+CS725 SFTP Service");
 		
 		while(true) {
 
-			// while(!clientSentence.contains("EXIT")) {
 			clientSentence = readMessage();
 
 			if (clientSentence.length() >= 4) {
@@ -54,46 +50,44 @@ public class SFTPConnection extends Thread{
 					break;
 					
 				case "ACCT":
-					System.out.println("acct command");
-					authenticated = authenticate(clientSentence);
+					acctCommand(clientSentence);
 					break;
 
 				case "PASS":
-					System.out.println("pass command");
-					authenticated = authenticate(clientSentence);
+					passCommand(clientSentence);
 					break;
 
 				case "TYPE":
-					System.out.println("type command");
+					typeCommand(clientSentence);
 					break;
 
 				case "LIST":
-					System.out.println("list command");
+					listCommand(clientSentence);
 					break;
 
 				case "CDIR":
-					System.out.println("cdir command");
+					cdirCommand(clientSentence);
 					break;
 
 				case "KILL":
-					System.out.println("kill command");
+					killCommand(clientSentence);
 					break;
 
 				case "NAME":
-					System.out.println("name command");
+					nameCommand(clientSentence);
 					break;
 
 				case "DONE":
 					System.out.println("done command");
-					sendMessage("+Connection closing...");
+					sendMessage("+CS725 closing connection...");
 					return;  // Connection done, stop connection
 
 				case "RETR":
-					System.out.println("retr command");
+					retrCommand(clientSentence);
 					break;
 
 				case "STOR":
-					System.out.println("stor command");
+					storCommand(clientSentence);					
 					break;
 
 				default:
@@ -103,26 +97,9 @@ public class SFTPConnection extends Thread{
 				}
 			} else if (clientSentence.length() < 4) {
 				System.out.println("Command too short");
-				sendMessage("TOO SHORT");
+				sendMessage("- INVALID");
 			}
 
-			// outToClient.writeBytes("Username: " + '\n');
-			// String username = inFromClient.readLine();
-			
-			// outToClient.writeBytes("Password: " + '\n');
-			// String password = inFromClient.readLine();
-
-			
-			// System.out.println("Received: " + username + " " + password);
-			
-			// if (username.equals("szha") && password.equals("215")) {
-			// 	outToClient.writeBytes("Authenticated." + '\n');
-			// 	System.out.println("szha logged in");
-			// } else if (username.equals("EXIT")) {
-			// 	outToClient.writeBytes("EXIT" + '\n');
-			// } else {
-			// 	outToClient.writeBytes("Authentication failed." + '\n');
-			// }
 		}
 	}
 	
@@ -130,8 +107,8 @@ public class SFTPConnection extends Thread{
 	/* Reads one character at a time into a buffer, return the buffer when '\0' 
 	 * is received. Blocking until '\0' has been received.
 	 * 
-	 * @param buffer	The BufferedReader object associated with the socket.
-	 * @return sentence	Complete message String, without the '\0' character.
+	 * @param	buffer		The BufferedReader object associated with the socket.
+	 * @return	sentence	Complete message String, without the '\0' character.
 	 * */
 	private String readMessage() {
 		String sentence = "";
@@ -155,7 +132,8 @@ public class SFTPConnection extends Thread{
 	}
 	
 	/* Concatenate a '\0' character at the end of the string and send the string
-	 * to the output stream to the server.
+	 * to the output stream to the server. If the first character is '-', server
+	 * will log the client off.
 	 * 
 	 * @param sentence	Complete message String, without the '\0' character.
 	 * */
@@ -171,15 +149,26 @@ public class SFTPConnection extends Thread{
 		}
 	}
 	
-	private void logOff() {
-		authenticated = false;
+	private void logOn() {
+		System.out.println("logging on");
+		authenticated = true;
+		accountAuthenticated = false;
+		passwordAuthenticated = false;
 		potentialMatches.clear();
 	}
 	
-	private boolean initAuthenticate() {
-
-		return true;
+	private void logOff() {
+		System.out.println("logging off");
+		authenticated = false;
+		accountAuthenticated = false;
+		passwordAuthenticated = false;
+		potentialMatches.clear();
 	}
+	
+	public boolean loggedOn() {
+		return authenticated;
+	}
+	
 	
 	private boolean userCommand(String clientSentence) {
 		try {
@@ -187,12 +176,7 @@ public class SFTPConnection extends Thread{
 		
 			System.out.println("user command, input: " + userId);
 			
-			// User already logged in
-			if (authenticated) {
-				sendMessage(String.format("!%s logged in", userId));
-			}
-			
-			// Check if user exists by iterating through the JSON objects
+			// Check if user exists by iterating through user list
 			Iterator<JSONObject> iterator = userList.iterator();
 			
 	        while (iterator.hasNext()) {
@@ -201,7 +185,12 @@ public class SFTPConnection extends Thread{
 	        	// Match found
 	        	if (user.get("userId").equals(userId.trim())) {
 	        		System.out.println("User exists!");
-	        		sendMessage(String.format("+%s valid, send account and password", userId));
+	        		if (user.get("account").equals("") && user.get("password").equals("")) {
+	        			logOn();
+	        			sendMessage(String.format("!%s logged in", userId));
+	        		} else {
+	        			sendMessage("+User-id valid, send account and password");
+	        		}
 	        		
 	        		return true;
 	        	}
@@ -216,27 +205,230 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 
-	private boolean authenticate(String sentence){
-		boolean userMatch = false;
-		boolean passMatch = false;
-		JSONObject jObj;
+	private boolean acctCommand(String clientSentence) {
+		System.out.println("acct command");
 		
-		System.out.println("Authenticating...");
+		try {
+			String acct = clientSentence.substring(5, clientSentence.length());
+			
+			if (passwordAuthenticated) {
+				if (acctForPass(acct)) {
+					logOn();
+					sendMessage("! Account valid, logged-in");
+					
+					return true;
+					
+				} else {
+					sendMessage("-Invalid account, try again");					
+				}
+	
+			} else if (acctExists(acct) > 0){
+				sendMessage("+Account valid, send password");
+				accountAuthenticated = true;
+				
+				return true;
+				
+			} else {
+				sendMessage("-Invalid account, try again");
+			}
+		} catch (IndexOutOfBoundsException e) {
+			// Acct command too short
+			System.out.println("acctCommand, IndexOutOfBounds");
+			
+			sendMessage("-Invalid account, try again");
+			
+			return false;
+		}
 		
-        Iterator<JSONObject> iterator = userList.iterator();
+		return false;
+	}
+	
+	private boolean passCommand(String clientSentence) {
+		System.out.println("pass command");
+		
+		try {
+			String pass = clientSentence.substring(5, clientSentence.length());
+			
+			if (accountAuthenticated) {
+				if (passForAcct(pass)) {
+					logOn();
+					sendMessage("! Logged in");
+					
+					return true;
+				} else {
+					sendMessage("-Wrong password, try again");		
+				}
+				
+			} else if (passExists(pass) > 0) {
+				sendMessage("+Send account");
+				passwordAuthenticated = true;
+
+			} else {
+				sendMessage("-Wrong password, try again");
+				
+			}
+		} catch (IndexOutOfBoundsException e) {
+			// Acct command too short
+			System.out.println("passCommand, IndexOutOfBounds");
+			
+			sendMessage("-Invalid account, try again");
+			
+			return false;
+		}
+			
+		return false;
+	}
+	
+	private boolean typeCommand(String clientSentence) {
+		System.out.println("type command");
+		
+		return false;
+	}
+
+	private boolean listCommand(String clientSentence) {
+		System.out.println("list command");
+		
+		return false;
+	}
+	
+	private boolean cdirCommand(String clientSentence) {
+		System.out.println("cdir command");
+		
+		return false;
+	}
+	
+	private boolean killCommand(String clientSentence) {
+		System.out.println("kill command");
+		
+		return false;
+	}
+	
+	private boolean nameCommand(String clientSentence) {
+		System.out.println("name command");
+		
+		return false;
+	}
+	
+	private boolean retrCommand(String clientSentence) {
+		System.out.println("retr command");
+		
+		return false;
+	}
+	
+	private boolean storCommand(String clientSentence) {
+		System.out.println("stor command");
+		
+		return false;
+	}
+	
+	/****************************************************************************/
+	
+	
+	/* Checks the user list, add account JSON object that matches
+	 * to potential match list and return the number of matches.
+	 * 
+	 * @param	acct	Account name in String.
+	 * @return	count	Number of accounts that matches the name.
+	 * */
+	private int acctExists(String acct) {
+		int count = 0;
+		
+		// Check if acct exists by iterating through user list
+		Iterator<JSONObject> iterator = userList.iterator();
+		
         while (iterator.hasNext()) {
-        	jObj = iterator.next();
-        	System.out.println("in " + sentence.substring(5).trim());
-        	if (jObj.get("userId").equals(sentence.substring(5).trim())) {
-        		System.out.println(jObj.get("userId"));
+        	JSONObject user = iterator.next();
+        	
+        	// Match found, append to potential matches list
+        	if (user.get("account").equals(acct.trim())) {
+        		potentialMatches.add(user);
+        		count++;
+        	}
+        }
+        
+        return count;
+	}
+
+	/* Checks the user list, add account JSON object that matches
+	 * to potential match list and return the number of matches.
+	 * 
+	 * @param	pass	Password in String.
+	 * @return	count	Number of accounts that matches the password.
+	 * */
+	private int passExists(String pass) {
+		int count = 0;
+		
+		// Check if pass exists by iterating through user list
+		Iterator<JSONObject> iterator = userList.iterator();
+		
+        while (iterator.hasNext()) {
+        	JSONObject user = iterator.next();
+        	
+        	// Match found, append to potential matches list
+        	if (user.get("password").equals(pass.trim())) {
+        		potentialMatches.add(user);
+        		count++;
         	}
         }
 		
-        System.out.println("Authentication complete");
-        
-//        sendMessage(, "+");
-        
-		return true;
+		return count;
 	}
+	
+	/* Checks if the specified account is for an account in the potential
+	 * matches list.
+	 * 
+	 * @param	acct	Account in String
+	 * @return	match	Account matches boolean
+	 * */
+	private boolean acctForPass(String acct) {
+		if (potentialMatches.isEmpty()) {
+			return false;
+		}
+		
+		// Check if acct matches an account in the potential matches
+		Iterator<JSONObject> iterator = potentialMatches.iterator();
+		
+        while (iterator.hasNext()) {
+        	JSONObject user = iterator.next();
+        	
+        	// Match found
+        	if (user.get("account").equals(acct.trim())) {
+        		System.out.println("acct matches pot. matches");
+        		
+        		return true;
+        	}
+        }
+		
+		return false;
+	}
+	
+	/* Checks if the specified password is for an account in the potential
+	 * matches list.
+	 * 
+	 * @param	pass	Password in String
+	 * @return	match	Password matches boolean
+	 * */
+	private boolean passForAcct(String pass) {
+		if (potentialMatches.isEmpty()) {
+			return false;
+		}
+		
+		// Check if acct matches an account in the potential matches
+		Iterator<JSONObject> iterator = potentialMatches.iterator();
+		
+        while (iterator.hasNext()) {
+        	JSONObject user = iterator.next();
+        	
+        	// Match found
+        	if (user.get("password").equals(pass.trim())) {
+        		System.out.println("pass matches pot. matches");
+        		
+        		return true;
+        	}
+        }
+		
+		return false;
+	}
+	
 	
 }
