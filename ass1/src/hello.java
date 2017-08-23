@@ -13,8 +13,8 @@ class HelloWorld {
 		
 		Path path = FileSystems.getDefault().getPath("").toAbsolutePath();
 		
+		String ROOT_DIRECTORY = FileSystems.getDefault().getPath("").toAbsolutePath().toString();
 		
-		
-		System.out.println(path.toString());
+		System.out.println(ROOT_DIRECTORY);
 	}
 }

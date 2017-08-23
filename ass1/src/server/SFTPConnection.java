@@ -11,7 +11,8 @@ import org.json.simple.*;
 
 public class SFTPConnection extends Thread{
 
-	private static final String DEFAULT_DIRECTORY = "./res/";
+	private static final String ROOT_DIRECTORY = FileSystems.getDefault().getPath("").toAbsolutePath().toString().concat("/");
+	private static final String DEFAULT_DIRECTORY = ROOT_DIRECTORY + "ServerFolder/";
 	
 	private BufferedReader inFromClient;
 	private DataOutputStream outToClient;
@@ -298,6 +299,14 @@ public class SFTPConnection extends Thread{
 	
 	private boolean cdirCommand(String clientSentence) {
 		System.out.println("cdir command");
+		
+		String oldDirName = clientSentence.substring(5, clientSentence.length());
+		
+		File newDirName = new File(currentDirectory + oldDirName);
+		
+		if (!newDirName.isDirectory()) {
+			sendMessage("-Can't connect to directory because no such directory exists");
+		}
 		
 		
 		

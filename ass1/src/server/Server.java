@@ -3,7 +3,6 @@ package server;
 import java.io.*;
 import java.net.*;
 import java.util.HashMap;
-import java.util.Iterator;
 
 import org.json.simple.*;
 import org.json.simple.parser.JSONParser;
@@ -15,15 +14,11 @@ public class Server {
 	private ServerSocket welcomeSocket;
 	private static final int WELCOME_PORT = 6789;
 
-	private HashMap<String, String> users;
 	private JSONArray userList;
-	
-	private boolean authenticated = false;
 
 	Server() throws IOException{
 		readUserList();
 		welcomeSocket = new ServerSocket(WELCOME_PORT);
-		users = new HashMap<String, String>();
 	}
 
 	public void start() throws IOException{
@@ -35,8 +30,6 @@ public class Server {
 			t.start();			
 		}	
 	}
-
-	
 
 	private void readUserList(){
 		JSONParser parser = new JSONParser();
@@ -55,13 +48,10 @@ public class Server {
 		
 	}
 
-	
 	public static void main(String[] args) throws IOException {
 		System.out.println("Starting Server...");
 		Server server = new Server();
 
 		server.start();
 	}
-	
-
 }
