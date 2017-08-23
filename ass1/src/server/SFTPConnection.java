@@ -2,6 +2,7 @@ package server;
 
 import java.io.*;
 import java.net.*;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -9,6 +10,8 @@ import org.json.simple.*;
 
 
 public class SFTPConnection extends Thread{
+
+	private static final String DEFAULT_DIRECTORY = "./res/";
 	
 	private BufferedReader inFromClient;
 	private DataOutputStream outToClient;
@@ -20,6 +23,8 @@ public class SFTPConnection extends Thread{
 	private boolean accountAuthenticated = false;
 	private boolean passwordAuthenticated = false;
 	private boolean authenticated = false;
+
+	private String currentDirectory = DEFAULT_DIRECTORY;
 	
 	
 	SFTPConnection(Socket connectionSocket, JSONArray userList) throws IOException{
@@ -294,11 +299,45 @@ public class SFTPConnection extends Thread{
 	private boolean cdirCommand(String clientSentence) {
 		System.out.println("cdir command");
 		
+		
+		
 		return false;
 	}
 	
 	private boolean killCommand(String clientSentence) {
 		System.out.println("kill command");
+		
+		try {
+			String filename = clientSentence.substring(5, clientSentence.length());
+			
+//			if (filename.contains("^[/\\<>|:&]+$")) {
+//				sendMessage("-Not deleted because filename contains reserved symbols");
+//			}
+			
+			System.out.println("Current dir = " + currentDirectory.toString());
+			
+			Path path = FileSystems.getDefault().getPath(currentDirectory, filename);
+			
+			try {
+				Files.delete(path);
+				sendMessage(String.format("+%s deleted", filename));
+				
+				return true;
+				
+			} catch (NoSuchFileException x) {
+			    System.err.format("%s: no such" + " file or directory%n", path);
+			    sendMessage("-Not deleted because no such file exists in the directory");
+			    
+			} catch (IOException x) {
+			    sendMessage("-Not deleted because it's protected");
+			    System.err.println(x);
+			}
+			
+		} catch (IndexOutOfBoundsException e) {			
+			sendMessage("-Invalid command argument, try again");
+			
+			return false;
+		}
 		
 		return false;
 	}
@@ -306,7 +345,53 @@ public class SFTPConnection extends Thread{
 	private boolean nameCommand(String clientSentence) {
 		System.out.println("name command");
 		
-		return false;
+		try {
+			String oldFilename = clientSentence.substring(5, clientSentence.length());
+			File oldFile = new File(currentDirectory + oldFilename);
+			
+			// Check if file exists
+			if (!oldFile.isFile()) {
+				sendMessage(String.format("-Can't find %s", oldFilename));
+				
+				return false;
+			}
+			
+			sendMessage(String.format("+File exists"));
+			
+			// Wait for TOBE command
+			String newClientSentence = readMessage();
+			
+			if (!newClientSentence.substring(0, 4).equals("TOBE")) {
+				sendMessage(String.format("-File wasn't renamed because command was not \"TOBE\""));
+			
+				return false;
+			}
+			
+			// Get new filename from argument
+			String newFilename = newClientSentence.substring(5, newClientSentence.length());
+			File newFile = new File(currentDirectory + newFilename);
+			
+			// Check if the new filename is already taken
+			if (newFile.exists()) {
+				sendMessage(String.format("-File wasn't renamed because new file name already exists"));
+			
+				return false;
+			}
+			
+			// Rename
+			if (oldFile.renameTo(newFile)) {
+				sendMessage(String.format("+%s renamed to %s", oldFilename, newFilename));
+			} else {
+				sendMessage(String.format("-File wasn't renamed because it's protected"));
+			}
+			
+		} catch (IndexOutOfBoundsException e) {			
+			sendMessage("-Invalid command argument, try again");
+			
+			return false;
+		}
+		
+		return true;
 	}
 	
 	private boolean retrCommand(String clientSentence) {
