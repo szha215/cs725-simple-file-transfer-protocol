@@ -3,15 +3,13 @@ package server;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
-import java.text.DateFormat;
+import java.nio.file.attribute.*;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.StringTokenizer;
-
-import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter.DEFAULT;
 
 import org.json.simple.*;
 
@@ -30,7 +28,6 @@ public class SFTPConnection extends Thread{
 
 	private boolean accountAuthenticated = false;
 	private boolean passwordAuthenticated = false;
-	private boolean authenticated = false;
 
 	private File currentDirectory = DEFAULT_DIRECTORY;
 	
@@ -42,7 +39,6 @@ public class SFTPConnection extends Thread{
 		outToClient = new DataOutputStream(connectionSocket.getOutputStream());
 		
 		potentialMatches = new ArrayList<JSONObject>();
-		authenticated = false;
 	}
 	
 	@Override
@@ -164,7 +160,6 @@ public class SFTPConnection extends Thread{
 	
 	private void logOn() {
 		System.out.println("logging on");
-		authenticated = true;
 		accountAuthenticated = false;
 		passwordAuthenticated = false;
 		potentialMatches.clear();
@@ -172,14 +167,13 @@ public class SFTPConnection extends Thread{
 	
 	private void logOff() {
 		System.out.println("logging off");
-		authenticated = false;
 		accountAuthenticated = false;
 		passwordAuthenticated = false;
 		potentialMatches.clear();
 	}
 	
 	public boolean loggedOn() {
-		return authenticated;
+		return (accountAuthenticated && passwordAuthenticated);
 	}
 	
 	
@@ -340,28 +334,36 @@ public class SFTPConnection extends Thread{
 			// no token, current directory
 		}
 		
+		SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy kk:mm");
 		File files[] = currentDirectory.listFiles();
-		DateFormat SimpleDateFormat = new SimpleDateFormat("dd/MM/yyyy kk:mm");
-		
-		System.out.println(files);
 		
 		for (File f : files) {
+			String filename = f.getName();
+			
+			if (f.isDirectory()) {
+				filename = filename.concat("/");
+			}
+			
+			// verbose
 			if (mode.equals("V")) {
+				long modifiedTime = f.lastModified();
+				String modifiedDate = dateFormat.format(new Date(modifiedTime));
+				String size = String.valueOf(f.length());
+				String owner = "";
 				
-				String filename = f.getName();
-				
-				if (f.isDirectory()) {
-					filename = filename.concat("/");
+				try {
+					 FileOwnerAttributeView attr = Files.getFileAttributeView(f.toPath(), FileOwnerAttributeView.class);
+					 owner = attr.getOwner().getName();
+				} catch (IOException e) {	
+					e.printStackTrace();
 				}
 				
-				long modifiedTime = f.lastModified();
-				String modifiedDate = new Date(modifiedTime).toString();
-				
-				
-				// filename, modified, size
-				outputList = outputList.concat(String.format("%-30s   %-12s   %-15s \r\n", filename, modifiedDate, "a"));
+				// filename, modified time, size, owner
+				outputList = outputList.concat(String.format("%-30s %-20s %10s %20s \r\n", filename, modifiedDate, size, owner));
+			
+			// non verbose
 			} else {
-				
+				outputList = outputList.concat(String.format("%-30s\r\n", filename));
 			}
 		}
 		
