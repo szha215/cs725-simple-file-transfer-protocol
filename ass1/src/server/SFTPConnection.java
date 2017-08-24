@@ -3,16 +3,23 @@ package server;
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
+import java.util.StringTokenizer;
+
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter.DEFAULT;
 
 import org.json.simple.*;
 
 
 public class SFTPConnection extends Thread{
 
-	private static final String ROOT_DIRECTORY = FileSystems.getDefault().getPath("").toAbsolutePath().toString().concat("/");
-	private static final String DEFAULT_DIRECTORY = ROOT_DIRECTORY + "ServerFolder/";
+	private static final File ROOT_DIRECTORY = FileSystems.getDefault().getPath("").toFile().getAbsoluteFile();
+	private static final File DEFAULT_DIRECTORY = FileSystems.getDefault().getPath("ServerFolder").toFile().getAbsoluteFile();
 	
 	private BufferedReader inFromClient;
 	private DataOutputStream outToClient;
@@ -25,7 +32,7 @@ public class SFTPConnection extends Thread{
 	private boolean passwordAuthenticated = false;
 	private boolean authenticated = false;
 
-	private String currentDirectory = DEFAULT_DIRECTORY;
+	private File currentDirectory = DEFAULT_DIRECTORY;
 	
 	
 	SFTPConnection(Socket connectionSocket, JSONArray userList) throws IOException{
@@ -50,17 +57,17 @@ public class SFTPConnection extends Thread{
 			clientSentence = readMessage();
 
 			if (clientSentence.length() >= 4) {
-				switch(clientSentence.substring(0, 4)) {
+				switch(clientSentence.substring(0, 4).toUpperCase()) {
 				case "USER":
 					userCommand(clientSentence);
 					break;
 					
 				case "ACCT":
-					acctCommand(clientSentence);
+					acctCommand(clientSentence, true);
 					break;
 
 				case "PASS":
-					passCommand(clientSentence);
+					passCommand(clientSentence, true);
 					break;
 
 				case "TYPE":
@@ -211,7 +218,7 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 
-	private boolean acctCommand(String clientSentence) {
+	private boolean acctCommand(String clientSentence, boolean reply) {
 		System.out.println("acct command");
 		
 		try {
@@ -220,28 +227,28 @@ public class SFTPConnection extends Thread{
 			if (passwordAuthenticated) {
 				if (acctForPass(acct)) {
 					logOn();
-					sendMessage("! Account valid, logged-in");
+					if (reply) sendMessage("! Account valid, logged-in");
 					
 					return true;
 					
 				} else {
-					sendMessage("-Invalid account, try again");					
+					if (reply) sendMessage("-Invalid account, try again");					
 				}
 	
 			} else if (acctExists(acct) > 0){
-				sendMessage("+Account valid, send password");
+				if (reply) sendMessage("+Account valid, send password");
 				accountAuthenticated = true;
 				
 				return true;
 				
 			} else {
-				sendMessage("-Invalid account, try again");
+				if (reply) sendMessage("-Invalid account, try again");
 			}
 		} catch (IndexOutOfBoundsException e) {
 			// Acct command too short
 			System.out.println("acctCommand, IndexOutOfBounds");
 			
-			sendMessage("-Invalid account, try again");
+			if (reply) sendMessage("-Invalid account, try again");
 			
 			return false;
 		}
@@ -249,7 +256,7 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 	
-	private boolean passCommand(String clientSentence) {
+	private boolean passCommand(String clientSentence, boolean reply) {
 		System.out.println("pass command");
 		
 		try {
@@ -258,26 +265,26 @@ public class SFTPConnection extends Thread{
 			if (accountAuthenticated) {
 				if (passForAcct(pass)) {
 					logOn();
-					sendMessage("! Logged in");
+					if (reply) sendMessage("! Logged in");
 					
 					return true;
 				} else {
-					sendMessage("-Wrong password, try again");		
+					if (reply) sendMessage("-Wrong password, try again");		
 				}
 				
 			} else if (passExists(pass) > 0) {
-				sendMessage("+Send account");
+				if (reply) sendMessage("+Send account");
 				passwordAuthenticated = true;
 
 			} else {
-				sendMessage("-Wrong password, try again");
+				if (reply) sendMessage("-Wrong password, try again");
 				
 			}
 		} catch (IndexOutOfBoundsException e) {
 			// Acct command too short
 			System.out.println("passCommand, IndexOutOfBounds");
 			
-			sendMessage("-Invalid account, try again");
+			if (reply) sendMessage("-Invalid account, try again");
 			
 			return false;
 		}
@@ -294,21 +301,129 @@ public class SFTPConnection extends Thread{
 	private boolean listCommand(String clientSentence) {
 		System.out.println("list command");
 		
-		return false;
+		String outputList = "+\n";
+		
+		String mode = "";
+		File path = currentDirectory;
+		
+		StringTokenizer tokenizedLine = new StringTokenizer(clientSentence);
+		
+		// Get rid of the command
+		tokenizedLine.nextToken();
+		
+		try {
+			mode = tokenizedLine.nextToken().toUpperCase();
+			
+			if (!mode.equals("F") && !mode.equals("V")) {
+				sendMessage("-Invalid arguments");
+				
+				System.out.println("`" + mode + "`");
+				
+				return false;
+			}
+			
+		} catch (NoSuchElementException e) {
+			sendMessage("-Missing arguments");
+			
+			return false;
+		}
+		
+		try {
+			path = new File(tokenizedLine.nextToken());
+			
+			if (!path.isDirectory()) {
+				sendMessage(String.format("-Not a directory"));
+				
+				return false;
+			}
+		} catch (NoSuchElementException e) {
+			// no token, current directory
+		}
+		
+		File files[] = currentDirectory.listFiles();
+		DateFormat SimpleDateFormat = new SimpleDateFormat("dd/MM/yyyy kk:mm");
+		
+		System.out.println(files);
+		
+		for (File f : files) {
+			if (mode.equals("V")) {
+				
+				String filename = f.getName();
+				
+				if (f.isDirectory()) {
+					filename = filename.concat("/");
+				}
+				
+				long modifiedTime = f.lastModified();
+				String modifiedDate = new Date(modifiedTime).toString();
+				
+				
+				// filename, modified, size
+				outputList = outputList.concat(String.format("%-30s   %-12s   %-15s \r\n", filename, modifiedDate, "a"));
+			} else {
+				
+			}
+		}
+		
+		sendMessage(outputList);
+		
+		return true;
 	}
 	
 	private boolean cdirCommand(String clientSentence) {
 		System.out.println("cdir command");
 		
-		String oldDirName = clientSentence.substring(5, clientSentence.length());
+		System.out.println("Current dir: " + currentDirectory.toString());
 		
-		File newDirName = new File(currentDirectory + oldDirName);
+		String newDirName = clientSentence.substring(5, clientSentence.length());
 		
-		if (!newDirName.isDirectory()) {
-			sendMessage("-Can't connect to directory because no such directory exists");
+		// Add / for directory
+		if (newDirName.charAt(0) != '/') {
+			newDirName = String.format("/%s", newDirName);
 		}
 		
+		if (newDirName.charAt(newDirName.length()-1) != '/') {
+			newDirName = newDirName.concat("/");
+		}
 		
+		File newDir = new File(currentDirectory.toString().concat(newDirName)).toPath().normalize().toFile();
+
+		System.out.println("new new dir name = " + newDir);
+		
+		// Client trying access folder above allocated "root" folder.
+		if (newDir.compareTo(DEFAULT_DIRECTORY.getAbsoluteFile()) < 0){
+			sendMessage("-Can't connect to directory because permission denied");
+			
+			return false;
+		}
+		
+		if (!newDir.isDirectory()) {
+			sendMessage("-Can't connect to directory because no such directory exists");
+			
+			return false;
+		}
+		
+		// Replace portion of the path to ~
+		String newDirReply = String.format("~%s", newDir.toString().substring(DEFAULT_DIRECTORY.toString().length()));
+		
+		// Already logged in
+		if (loggedOn()) {
+			currentDirectory = newDir;
+			sendMessage(String.format("!Changed working dir to %s", newDirReply));
+			
+			System.out.println("Current dir: " + currentDirectory);
+			
+			return true;
+			
+		// Need to log in
+		} else {
+			sendMessage(String.format("+directory ok, send account/password", newDir));
+			
+			if (cdirAuthenticate()) {
+				currentDirectory = newDir;
+				sendMessage(String.format("!Changed working dir to %s", newDirReply));
+			}
+		}
 		
 		return false;
 	}
@@ -325,7 +440,7 @@ public class SFTPConnection extends Thread{
 			
 			System.out.println("Current dir = " + currentDirectory.toString());
 			
-			Path path = FileSystems.getDefault().getPath(currentDirectory, filename);
+			Path path = new File(currentDirectory.toString().concat("/").concat(filename)).toPath();
 			
 			try {
 				Files.delete(path);
@@ -356,7 +471,7 @@ public class SFTPConnection extends Thread{
 		
 		try {
 			String oldFilename = clientSentence.substring(5, clientSentence.length());
-			File oldFile = new File(currentDirectory + oldFilename);
+			File oldFile = new File(currentDirectory.toString() + "/" + oldFilename);
 			
 			// Check if file exists
 			if (!oldFile.isFile()) {
@@ -370,7 +485,7 @@ public class SFTPConnection extends Thread{
 			// Wait for TOBE command
 			String newClientSentence = readMessage();
 			
-			if (!newClientSentence.substring(0, 4).equals("TOBE")) {
+			if (!newClientSentence.substring(0, 4).toUpperCase().equals("TOBE")) {
 				sendMessage(String.format("-File wasn't renamed because command was not \"TOBE\""));
 			
 				return false;
@@ -378,7 +493,7 @@ public class SFTPConnection extends Thread{
 			
 			// Get new filename from argument
 			String newFilename = newClientSentence.substring(5, newClientSentence.length());
-			File newFile = new File(currentDirectory + newFilename);
+			File newFile = new File(currentDirectory.toString() + "/" + newFilename);
 			
 			// Check if the new filename is already taken
 			if (newFile.exists()) {
@@ -417,6 +532,52 @@ public class SFTPConnection extends Thread{
 	
 	/****************************************************************************/
 	
+	private boolean cdirAuthenticate() {
+		
+		while(true) {
+			String clientSentence = readMessage();
+			
+			if (clientSentence.length() >= 4) {
+				switch(clientSentence.substring(0, 4).toUpperCase()) {
+				case "ACCT":
+					if (!acctCommand(clientSentence, false)) {
+						sendMessage("-invalid account");
+						return false;
+					}
+					
+					if (loggedOn()) {
+						return true;
+					} else {
+						sendMessage("+account ok, send password");
+					}
+					
+					break;
+	
+				case "PASS":
+					if (!passCommand(clientSentence, false)) {
+						sendMessage("-invalid password");
+						return false;
+					}
+					
+					if (loggedOn()) {
+						return true;
+					} else {
+						sendMessage("+password ok, send account");
+					}
+					
+					break;
+	
+				default:
+					sendMessage("-invalid command");
+					return false;
+				}
+				
+			} else {
+				sendMessage("-invalid command");
+				return false;
+			}
+		}
+	}
 	
 	/* Checks the user list, add account JSON object that matches
 	 * to potential match list and return the number of matches.
