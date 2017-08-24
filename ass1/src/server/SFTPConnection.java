@@ -323,7 +323,7 @@ public class SFTPConnection extends Thread{
 		}
 		
 		try {
-			path = new File(tokenizedLine.nextToken());
+			path = new File(currentDirectory.toString() + "/" + tokenizedLine.nextToken());
 			
 			if (!path.isDirectory()) {
 				sendMessage(String.format("-Not a directory"));
@@ -335,7 +335,7 @@ public class SFTPConnection extends Thread{
 		}
 		
 		SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy kk:mm");
-		File files[] = currentDirectory.listFiles();
+		File files[] = path.listFiles();
 		
 		for (File f : files) {
 			String filename = f.getName();
