@@ -160,8 +160,8 @@ public class SFTPConnection extends Thread{
 	
 	private void logOn() {
 		System.out.println("logging on");
-		accountAuthenticated = false;
-		passwordAuthenticated = false;
+		accountAuthenticated = true;
+		passwordAuthenticated = true;
 		potentialMatches.clear();
 	}
 	
