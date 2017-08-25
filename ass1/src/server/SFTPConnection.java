@@ -22,14 +22,21 @@ public class SFTPConnection extends Thread{
 	private BufferedReader inFromClient;
 	private DataOutputStream outToClient;
 	
+	private BufferedInputStream dataInFromClient;
+	private BufferedOutputStream bufferedOutToClient;
+//	private DataOutputStream dataOutToClient;
+	
 	private JSONArray userList;
 
 	private ArrayList<JSONObject> potentialMatches;
 
 	private boolean accountAuthenticated = false;
 	private boolean passwordAuthenticated = false;
+	private boolean loggedIn = false;
 
 	private File currentDirectory = DEFAULT_DIRECTORY;
+	
+	private String transmissionType = "B";
 	
 	
 	SFTPConnection(Socket connectionSocket, JSONArray userList) throws IOException{
@@ -37,6 +44,12 @@ public class SFTPConnection extends Thread{
 		
 		inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
 		outToClient = new DataOutputStream(connectionSocket.getOutputStream());
+		
+		dataInFromClient = new BufferedInputStream(connectionSocket.getInputStream());
+		bufferedOutToClient = new BufferedOutputStream(connectionSocket.getOutputStream());
+//		dataOutToClient = new DataOutputStream(bufferedOutToClient);
+		
+//		dataInFromClient = new InputStream
 		
 		potentialMatches = new ArrayList<JSONObject>();
 	}
@@ -89,6 +102,7 @@ public class SFTPConnection extends Thread{
 				case "DONE":
 					System.out.println("done command");
 					sendMessage("+CS725 closing connection...");
+
 					return;  // Connection done, stop connection
 
 				case "RETR":
@@ -106,7 +120,7 @@ public class SFTPConnection extends Thread{
 				}
 			} else if (clientSentence.length() < 4) {
 				System.out.println("Command too short");
-				sendMessage("- INVALID");
+				sendMessage("- Invalid command");
 			}
 
 		}
@@ -154,14 +168,15 @@ public class SFTPConnection extends Thread{
 		try {
 			outToClient.writeBytes(sentence.concat(Character.toString('\0')));
 		} catch (IOException e) {
-			e.printStackTrace();
+//			e.printStackTrace();
 		}
 	}
 	
 	private void logOn() {
 		System.out.println("logging on");
-		accountAuthenticated = true;
-		passwordAuthenticated = true;
+		accountAuthenticated = false;
+		passwordAuthenticated = false;
+		loggedIn = true;
 		potentialMatches.clear();
 	}
 	
@@ -169,13 +184,14 @@ public class SFTPConnection extends Thread{
 		System.out.println("logging off");
 		accountAuthenticated = false;
 		passwordAuthenticated = false;
+		loggedIn = false;
 		potentialMatches.clear();
 	}
 	
 	public boolean loggedOn() {
-		return (accountAuthenticated && passwordAuthenticated);
+		return loggedIn;
 	}
-	
+
 	
 	private boolean userCommand(String clientSentence) {
 		try {
@@ -289,11 +305,65 @@ public class SFTPConnection extends Thread{
 	private boolean typeCommand(String clientSentence) {
 		System.out.println("type command");
 		
-		return false;
+		if (!loggedOn()) {
+			sendMessage("-Not logged in");
+			
+			return false;
+		}
+		
+		StringTokenizer tokenizedLine = new StringTokenizer(clientSentence);
+		
+		// Get rid of the command
+		tokenizedLine.nextToken();
+		
+		try {
+			String type = tokenizedLine.nextToken().toUpperCase();
+			
+			if (!type.equals("A") && !type.equals("B") && !type.equals("C")) {
+				sendMessage("-Invalid arguments");
+				
+				return false;
+			}
+			
+			String reply = "";
+			
+			switch(type.toUpperCase()) {
+			case "A":
+				reply = "Ascii";
+				break;
+				
+			case "B":
+				reply = "Binary";
+				break;
+				
+			case "C":
+				reply = "Continuous";
+				break;
+			}
+			
+			// Update the transmission type
+			transmissionType = type;
+			System.out.println("Transmission type is now " + transmissionType);
+			
+			sendMessage(String.format("+Using %s mode", reply));
+			
+		} catch (NoSuchElementException e) {
+			sendMessage("-Missing arguments");
+			
+			return false;
+		}
+		
+		return true;
 	}
 
 	private boolean listCommand(String clientSentence) {
 		System.out.println("list command");
+		
+		if (!loggedOn()) {
+			sendMessage("-Not logged in");
+			
+			return false;
+		}
 		
 		String outputList = "+\n";
 		
@@ -334,9 +404,12 @@ public class SFTPConnection extends Thread{
 			// no token, current directory
 		}
 		
+		// Dateformat for verbose print
 		SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy kk:mm");
+		
 		File files[] = path.listFiles();
 		
+		// Go through each file in the directory
 		for (File f : files) {
 			String filename = f.getName();
 			
@@ -344,26 +417,26 @@ public class SFTPConnection extends Thread{
 				filename = filename.concat("/");
 			}
 			
-			// verbose
+			// verbose, get information on the file
 			if (mode.equals("V")) {
 				long modifiedTime = f.lastModified();
 				String modifiedDate = dateFormat.format(new Date(modifiedTime));
 				String size = String.valueOf(f.length());
 				String owner = "";
-				
+
 				try {
 					 FileOwnerAttributeView attr = Files.getFileAttributeView(f.toPath(), FileOwnerAttributeView.class);
 					 owner = attr.getOwner().getName();
 				} catch (IOException e) {	
 					e.printStackTrace();
 				}
-				
-				// filename, modified time, size, owner
+
+				// print structure:   filename   modified time    size    owner
 				outputList = outputList.concat(String.format("%-30s %-20s %10s %20s \r\n", filename, modifiedDate, size, owner));
 			
-			// non verbose
+			// non verbose, filename only
 			} else {
-				outputList = outputList.concat(String.format("%-30s\r\n", filename));
+				outputList = outputList.concat(String.format("%s \r\n", filename));
 			}
 		}
 		
@@ -433,6 +506,12 @@ public class SFTPConnection extends Thread{
 	private boolean killCommand(String clientSentence) {
 		System.out.println("kill command");
 		
+		if (!loggedOn()) {
+			sendMessage("-Not logged in");
+			
+			return false;
+		}
+		
 		try {
 			String filename = clientSentence.substring(5, clientSentence.length());
 			
@@ -470,6 +549,12 @@ public class SFTPConnection extends Thread{
 	
 	private boolean nameCommand(String clientSentence) {
 		System.out.println("name command");
+		
+		if (!loggedOn()) {
+			sendMessage("-Not logged in");
+			
+			return false;
+		}
 		
 		try {
 			String oldFilename = clientSentence.substring(5, clientSentence.length());
@@ -520,10 +605,83 @@ public class SFTPConnection extends Thread{
 		return true;
 	}
 	
+	
 	private boolean retrCommand(String clientSentence) {
 		System.out.println("retr command");
 		
-		return false;
+		String filename, clientDecision;
+		
+		try {
+			filename = clientSentence.substring(5, clientSentence.length());
+		} catch (IndexOutOfBoundsException e) {
+			sendMessage("-Invalid filename");
+			
+			return false;
+		}
+			
+		File file = new File(currentDirectory.toString() + "/" + filename);
+		
+		System.out.println("File of interest = " + file.toPath().toAbsolutePath().toString());
+		
+		if (!file.isFile()) {
+			sendMessage("-File doesn't exist");
+			
+			return false;
+		}
+		
+		long fileSize = file.length();
+		sendMessage(String.format(" %s", String.valueOf(fileSize)));
+		
+		try {
+			clientDecision = readMessage().substring(0, 4).toUpperCase();
+		} catch (IndexOutOfBoundsException e) {
+			sendMessage("-Invalid response");
+			
+			return false;
+		}
+		
+		if (clientDecision.equals("STOP")) {
+			sendMessage("+ok, RETR aborted");
+			
+			return false;
+
+		} else if (!clientDecision.equals("SEND")) {
+			sendMessage("-Invalid response");
+			
+			return false;
+		}
+		
+//		sendMessage("sending...");
+		
+		byte[] bytes = new byte[(int) fileSize];
+		FileInputStream fis;
+
+		try {
+			fis = new FileInputStream(file);
+			BufferedInputStream bufferedInStream = new BufferedInputStream(new FileInputStream(file));
+			
+			System.out.println("Total file size to read (in bytes) : " + fis.available());
+
+			int count = 0;
+			while ((count = bufferedInStream.read(bytes)) >= 0) {
+				bufferedOutToClient.write(bytes, 0, count);
+			}
+			
+			bufferedOutToClient.close();
+//			dataOutToClient.close();
+			
+			
+			bufferedInStream.close();
+	
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		sendMessage("sent");
+		
+		return true;
 	}
 	
 	private boolean storCommand(String clientSentence) {
