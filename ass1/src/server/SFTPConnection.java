@@ -19,12 +19,14 @@ public class SFTPConnection extends Thread{
 	private static final File ROOT_DIRECTORY = FileSystems.getDefault().getPath("").toFile().getAbsoluteFile();
 	private static final File DEFAULT_DIRECTORY = FileSystems.getDefault().getPath("ServerFolder").toFile().getAbsoluteFile();
 	
+	private Socket connectionSocket;
+	
 	private BufferedReader inFromClient;
 	private DataOutputStream outToClient;
 	
 	private BufferedInputStream dataInFromClient;
 	private BufferedOutputStream bufferedOutToClient;
-//	private DataOutputStream dataOutToClient;
+	private DataOutputStream dataOutToClient;
 	
 	private JSONArray userList;
 
@@ -40,6 +42,7 @@ public class SFTPConnection extends Thread{
 	
 	
 	SFTPConnection(Socket connectionSocket, JSONArray userList) throws IOException{
+		this.connectionSocket = connectionSocket;
 		this.userList = userList;
 		
 		inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
@@ -47,16 +50,20 @@ public class SFTPConnection extends Thread{
 		
 		dataInFromClient = new BufferedInputStream(connectionSocket.getInputStream());
 		bufferedOutToClient = new BufferedOutputStream(connectionSocket.getOutputStream());
-//		dataOutToClient = new DataOutputStream(bufferedOutToClient);
+		dataOutToClient = new DataOutputStream(bufferedOutToClient);
 		
 //		dataInFromClient = new InputStream
-		
 		potentialMatches = new ArrayList<JSONObject>();
 	}
 	
 	@Override
 	public void run() {
 		String clientSentence = "";
+		
+		if (connectionSocket.isClosed()) {
+			System.out.println("SOCKET CLOSED");
+			return;
+		}
 		
 		// Send greeting 
 		sendMessage("+CS725 SFTP Service");
@@ -119,7 +126,8 @@ public class SFTPConnection extends Thread{
 					break;
 				}
 			} else if (clientSentence.length() < 4) {
-				System.out.println("Command too short");
+				
+				System.out.println("Command too short: " + clientSentence);
 				sendMessage("- Invalid command");
 			}
 
@@ -140,9 +148,20 @@ public class SFTPConnection extends Thread{
 		while (true){
 			try {
 				character = inFromClient.read();  // Read one character
-			} catch (IOException e) {
+			} catch (Exception e) {
 				e.printStackTrace();
+				
+//				try {
+////					inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
+//					connectionSocket.close();
+//				} catch (IOException e1) {
+//					// TODO Auto-generated catch block
+//					System.out.println("ERROR recreating buffered reader");
+//					e1.printStackTrace();
+//				}
 			}
+			
+			System.out.print("`" + character);
 			
 			// '\0' detected, return sentence.
 			if (character == 0) {
@@ -365,7 +384,7 @@ public class SFTPConnection extends Thread{
 			return false;
 		}
 		
-		String outputList = "+\n";
+		String outputList = "+\n./\n../\n";
 		
 		String mode = "";
 		File path = currentDirectory;
@@ -462,8 +481,6 @@ public class SFTPConnection extends Thread{
 		}
 		
 		File newDir = new File(currentDirectory.toString().concat(newDirName)).toPath().normalize().toFile();
-
-		System.out.println("new new dir name = " + newDir);
 		
 		// Client trying access folder above allocated "root" folder.
 		if (newDir.compareTo(DEFAULT_DIRECTORY.getAbsoluteFile()) < 0){
@@ -654,24 +671,26 @@ public class SFTPConnection extends Thread{
 //		sendMessage("sending...");
 		
 		byte[] bytes = new byte[(int) fileSize];
-		FileInputStream fis;
 
 		try {
-			fis = new FileInputStream(file);
+			FileInputStream fis = new FileInputStream(file);
 			BufferedInputStream bufferedInStream = new BufferedInputStream(new FileInputStream(file));
 			
 			System.out.println("Total file size to read (in bytes) : " + fis.available());
 
-			int count = 0;
-			while ((count = bufferedInStream.read(bytes)) >= 0) {
-				bufferedOutToClient.write(bytes, 0, count);
+			int content = 0;
+			while ((content = bufferedInStream.read(bytes)) >= 0) {
+//				bufferedOutToClient.write(bytes, 0, count);
+				dataOutToClient.write(bytes, 0, content);
+//				outToClient.flush();
+				
+//				data
+				System.out.println(content);
 			}
 			
-			bufferedOutToClient.close();
-//			dataOutToClient.close();
-			
-			
 			bufferedInStream.close();
+			dataOutToClient.flush();
+
 	
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
@@ -679,7 +698,8 @@ public class SFTPConnection extends Thread{
 			e.printStackTrace();
 		}
 		
-		sendMessage("sent");
+		System.out.println("FILE SENT");
+		
 		
 		return true;
 	}

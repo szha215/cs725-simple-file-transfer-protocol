@@ -37,68 +37,93 @@ public class Client {
 
 	public void start() throws IOException{
 		String serverSentence;
-		String sentence;
-		String filename = "";
-		long fileSize = 0;
+		String clientSentence;
 		
-		StringTokenizer tokenizedServerSentence;
+		StringTokenizer tokenizedClientSentence;
+		
+		serverSentence = readMessage();
+		System.out.println(serverSentence);
 		
 		while(true) {
-			System.out.println("SOCKET CLOSED? " + clientSocket.isClosed());
 			
-			serverSentence = readMessage(inFromServer);
-			System.out.println(serverSentence);
+			clientSentence = inFromUser.readLine();
+			tokenizedClientSentence = new StringTokenizer(clientSentence);
 			
-			if (serverSentence.charAt(0) == ' ') {
-				tokenizedServerSentence = new StringTokenizer(serverSentence);
+			switch(tokenizedClientSentence.nextToken().toUpperCase()) {
+			case "RETR":
+				retrClientCommand(clientSentence);
+				continue;
 				
-				fileSize = Long.valueOf(tokenizedServerSentence.nextToken());
-				System.out.println("File size = " + fileSize);
-				
-				sentence = inFromUser.readLine();
-				sendMessage(outToServer, sentence);
-				
-//				System.out.println(readMessage(inFromServer));
-				
-				if (receiveFile(filename, fileSize)) {
-					System.out.print(String.format("File %s received", filename));
-
-					continue;
-				}
-			}
-			
-			sentence = inFromUser.readLine();
-			
-			sendMessage(outToServer, sentence);
-			
-			
-			StringTokenizer tokenizedLine = new StringTokenizer(sentence);
-			
-			switch(tokenizedLine.nextToken().toUpperCase()) {
 			case "DONE":
-				if (readMessage(inFromServer).charAt(0) == '+') {
+				if (readMessage().charAt(0) == '+') {
 					System.out.println("DONE, closing socket");
 					clientSocket.close();
 					
 					return;
 				}
 				
+			default:
+				sendMessage(clientSentence);
 				break;
-			case "RETR":
-				try {
-					filename = tokenizedLine.nextToken();
-				} catch (NoSuchElementException e) {
-					continue;
-				}
-				
-				break;
-			}
+			}	
 			
+			serverSentence = readMessage();
+			System.out.println(serverSentence);
 
-			
 		}
 		
 	}
+	
+	private boolean retrClientCommand(String sentence) throws IOException {
+		StringTokenizer tokenizedClientSentence = new StringTokenizer(sentence);
+		tokenizedClientSentence.nextToken();  // RETR command
+		
+		String filename = "";
+		
+		if (tokenizedClientSentence.hasMoreTokens()) {
+			filename = tokenizedClientSentence.nextToken();
+		} else {
+			System.err.println("Missing filename");
+			
+			return false;
+		}
+		
+		sendMessage(sentence);
+		String serverSentence = readMessage();
+		StringTokenizer tokenizedServerSentence = new StringTokenizer(serverSentence);
+		char first = '\0';
+		
+		first = serverSentence.charAt(0);
+		
+		if (first == ' ') {
+			
+			long fileSize = Long.valueOf(tokenizedServerSentence.nextToken());
+			System.out.println(String.format("File size = %d bytes. Type \"SEND\" or \"STOP\"", fileSize));
+			
+			String clientSentence = inFromUser.readLine();
+			
+			if (clientSentence.toUpperCase().equals("SEND")) {
+				sendMessage("SEND");
+			} else {
+				sendMessage(clientSentence);
+				System.out.println(readMessage());  // Server replies "aborted"
+				
+				return false;
+			}
+
+			
+			if (receiveFile(filename, fileSize)) {
+				System.out.println(String.format("File %s received", filename));
+			}
+		} else {
+			System.out.println(serverSentence);
+			return false;
+		}
+		
+		
+		return true;
+	}
+	
 
 	/* Reads one character at a time into a buffer, return the buffer when '\0' 
 	 * is received.
@@ -106,13 +131,13 @@ public class Client {
 	 * @param buffer	The BufferedReader object associated with the socket.
 	 * @return sentence	Complete message String, without the '\0' character.
 	 * */
-	private String readMessage(BufferedReader buffer) {
+	private String readMessage() {
 		String sentence = "";
 		int character = 0;
 		
 		while (true){
 			try {
-				character = buffer.read();  // Read one character
+				character = inFromServer.read();  // Read one character
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -122,17 +147,17 @@ public class Client {
 				break;
 			}
 			
-			// '!' detected, log in
-			if (character == '!') {
-				loggedIn = true;
-				System.out.println("client logged in");
-			} else if (character == '-') {
-				loggedIn = false;
-				System.out.println("client logged off");
-			}
-			
 			// Concatenate char into sentence.
 			sentence = sentence.concat(Character.toString((char)character));
+		}
+		
+		// '!' detected, log in
+		if (sentence.charAt(0) == '!') {
+			loggedIn = true;
+			System.out.println("client logged in");
+		} else if (sentence.charAt(0) == '-') {
+			loggedIn = false;
+			System.out.println("client logged off");
 		}
 
 		return sentence;
@@ -144,23 +169,39 @@ public class Client {
 	 * @param stream	The DataOutputStream object associated with the socket.
 	 * @param sentence	Complete message String, without the '\0' character.
 	 * */
-	private void sendMessage(DataOutputStream stream, String sentence) throws IOException{
-		stream.writeBytes(sentence.concat(Character.toString('\0')));
+	private void sendMessage(String sentence){
+		try {
+			outToServer.writeBytes(sentence.concat(Character.toString('\0')));
+		} catch (IOException e) {
+//			e.printStackTrace();
+		}
 	}
 	
 	private boolean receiveFile(String filename, long fileSize) throws IOException {
 		byte[] bytes = new byte[(int) fileSize];
 		
+//		Path file = Paths.get(DEFAULT_DIRECTORY.getPath().toString() + "/" + filename);
 		File file = new File(DEFAULT_DIRECTORY.getPath().toString() + "/" + filename);
-//		FileOutputStream fileOutStream = new FileOutputStream(file);
-		BufferedOutputStream bufferedOutStream = new BufferedOutputStream(new FileOutputStream(file));
+		FileOutputStream fileOutStream = new FileOutputStream(file);
+		BufferedOutputStream bufferedOutStream = new BufferedOutputStream(fileOutStream);
 		
 		int count = 0;
-		while((count = dataInFromServer.read(bytes)) > 0) {
+		
+		for (int i = 0; i < fileSize; i++) {
 			bufferedOutStream.write(dataInFromServer.read());
+			System.out.print(i+",");
 		}
 		
+//		while((count = dataInFromServer.read(bytes)) < fileSize) {
+//			System.out.println(count);
+//			bufferedOutStream.write(bytes);
+//		}
+		
+//		Files.write(file, bytes, StandardOpenOption.WRITE);
+		
+		
 		bufferedOutStream.close();
+		fileOutStream.close();
 		
 		return true;
 	}
