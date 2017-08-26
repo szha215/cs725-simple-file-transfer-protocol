@@ -2,7 +2,6 @@ package server;
 
 import java.io.*;
 import java.net.*;
-import java.util.HashMap;
 
 import org.json.simple.*;
 import org.json.simple.parser.JSONParser;
@@ -24,6 +23,8 @@ public class Server {
 	public void start() throws IOException{
 
 		while (true) {
+			
+			// Wait for an incoming connection, and fork a thread to handle it
 			Socket connectionSocket = welcomeSocket.accept();
 			
 			Thread t = new SFTPConnection(connectionSocket, userList);
@@ -35,9 +36,7 @@ public class Server {
 		JSONParser parser = new JSONParser();
 
 		try {
-			userList = (JSONArray) parser.parse(new FileReader("res/userlist.json"));
-			System.out.println(userList);
-			
+			userList = (JSONArray) parser.parse(new FileReader("res/userlist.json"));			
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -45,13 +44,12 @@ public class Server {
 		} catch (ParseException e) {
 			e.printStackTrace();
 		}
-		
 	}
 
 	public static void main(String[] args) throws IOException {
 		System.out.println("Starting Server...");
+		
 		Server server = new Server();
-
 		server.start();
 	}
 }

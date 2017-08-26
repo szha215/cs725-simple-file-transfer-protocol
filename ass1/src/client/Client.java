@@ -178,28 +178,15 @@ public class Client {
 	}
 	
 	private boolean receiveFile(String filename, long fileSize) throws IOException {
-		byte[] bytes = new byte[(int) fileSize];
-		
-//		Path file = Paths.get(DEFAULT_DIRECTORY.getPath().toString() + "/" + filename);
 		File file = new File(DEFAULT_DIRECTORY.getPath().toString() + "/" + filename);
 		FileOutputStream fileOutStream = new FileOutputStream(file);
 		BufferedOutputStream bufferedOutStream = new BufferedOutputStream(fileOutStream);
-		
-		int count = 0;
-		
+
+		// Read and write for all bytes
 		for (int i = 0; i < fileSize; i++) {
 			bufferedOutStream.write(dataInFromServer.read());
-			System.out.print(i+",");
 		}
-		
-//		while((count = dataInFromServer.read(bytes)) < fileSize) {
-//			System.out.println(count);
-//			bufferedOutStream.write(bytes);
-//		}
-		
-//		Files.write(file, bytes, StandardOpenOption.WRITE);
-		
-		
+
 		bufferedOutStream.close();
 		fileOutStream.close();
 		
@@ -213,8 +200,8 @@ public class Client {
 	
 	public static void main(String[] args) throws UnknownHostException, IOException {
 		System.out.println("Starting Client...");
+		
 		Client client = new Client();
-
 		client.start();
 	}
 }
