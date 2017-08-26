@@ -703,6 +703,8 @@ public class SFTPConnection extends Thread{
 		StringTokenizer tokenizedSentence = new StringTokenizer(clientSentence);
 		tokenizedSentence.nextToken();  // Command
 		
+		/*		step 1:	Check request	*/
+		
 		// Check for missing mode
 		if (!tokenizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing arguments");
@@ -725,6 +727,7 @@ public class SFTPConnection extends Thread{
 		File file = new File(currentDirectory.toString() + "/" + filename);
 		if (DEBUG) System.out.println("File to be written = " + file.toPath().toAbsolutePath().toString());
 
+		boolean overwrite = false;
 		
 		switch(mode) {
 		case "NEW":
@@ -733,14 +736,28 @@ public class SFTPConnection extends Thread{
 				
 				return false;
 			}
-		
 			
+			sendMessage("+File does not exist, will create new file");
 			break;
 			
 		case "OLD":
+			if (file.isFile()) {
+				sendMessage("+Will write over old file");
+				overwrite = true;
+			} else {
+				sendMessage("+Will create new file");
+			}
+			
 			break;
 			
 		case "APP":
+			if (file.isFile()) {
+				sendMessage("+Will append to file");
+				overwrite = true;
+			} else {
+				sendMessage("+Will create file");
+			}
+			
 			break;
 			
 		default:
@@ -750,8 +767,58 @@ public class SFTPConnection extends Thread{
 		}
 		
 		
-		return false;
+		/*		step 2: Check file size	*/
+		
+		String clientDecision = readMessage();
+		tokenizedSentence = new StringTokenizer(clientDecision);
+		
+		if (!tokenizedSentence.nextToken().equals("SIZE")) {
+			System.out.println("Step 2: no SIZE");
+			sendMessage("-Invalid argument");
+			
+			return false;
+		}
+		
+		if (!tokenizedSentence.hasMoreTokens()) {
+			System.out.println("Step 2: no size value");
+			sendMessage("-Missing file size");
+			
+			return false;
+		}
+		
+		long fileSize = Long.parseLong(tokenizedSentence.nextToken());
+		
+		try {
+			if (!fileCanFit(fileSize)) {
+				sendMessage("-Not enough room, don't send it");
+				return false;
+			}
+			
+		} catch (IOException e) {
+			sendMessage("-Error reading free space, don't send it");
+			return false;
+		}
+		
+		sendMessage("+ok, waiting for file");
+		
+		/*		step 3: receive file	*/
+		
+		try {
+			receiveFile(file, fileSize, overwrite);
+		} catch (IOException e) {
+			e.printStackTrace();
+			sendMessage("-Couldn't save because write access permissions");
+			
+			return false;
+		}
+		
+		/*		step 4: Confirmation	*/
+		
+		sendMessage(String.format("+Saved %s", filename));
+		
+		return true;
 	}
+	
 	
 	/*********************************** Helper Methods *****************************************/
 	

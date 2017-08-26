@@ -202,6 +202,7 @@ public class Client {
 	private boolean storClientCommand(String sentence) {
 		StringTokenizer tokenizedClientSentence = new StringTokenizer(sentence);
 		tokenizedClientSentence.nextToken();  // Command
+		tokenizedClientSentence.nextToken();  // Argument (NEW, OLD, APP)
 		
 		// check for missing argument
 		if (!tokenizedClientSentence.hasMoreTokens()) {
@@ -243,7 +244,7 @@ public class Client {
 		}
 		
 		
-		/*		step 2: send file size	*/
+		/*		step 2: Send file size	*/
 		
 		sendMessage(String.format("SIZE %s", String.valueOf(file.length())));
 		
@@ -256,12 +257,12 @@ public class Client {
 			return false;
 		}
 		
-		/*		step 3: send file		*/
+		/*		step 3: Send file		*/
 		
 		sendFile(file);
 		
 		
-		/*		step 4: confirmation	*/
+		/*		step 4: Confirmation	*/
 		
 		serverDecision = readMessage();
 		
