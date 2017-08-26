@@ -16,9 +16,9 @@ import org.json.simple.*;
 
 public class SFTPConnection extends Thread{
 
-	public static boolean DEBUG = true;
+	public static boolean DEBUG = false;
 	
-	private static final File DEFAULT_DIRECTORY = FileSystems.getDefault().getPath("ServerFolder").toFile().getAbsoluteFile();
+	private static final File DEFAULT_DIRECTORY = FileSystems.getDefault().getPath("res/ServerFolder").toFile().getAbsoluteFile();
 	
 	private Socket connectionSocket;
 	
@@ -56,8 +56,8 @@ public class SFTPConnection extends Thread{
 		dataInFromClient = new BufferedInputStream(connectionSocket.getInputStream());
 		
 		// Data out
-		bufferedOutToClient = new BufferedOutputStream(connectionSocket.getOutputStream());
-		dataOutToClient = new DataOutputStream(bufferedOutToClient);
+//		bufferedOutToClient = new BufferedOutputStream();
+		dataOutToClient = new DataOutputStream(connectionSocket.getOutputStream());
 	}
 	
 	@Override
@@ -223,6 +223,7 @@ public class SFTPConnection extends Thread{
 		// No username in arguments
 		if (!tokentizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing argument");
+			return false;
 		}
 		
 		String userId = tokentizedSentence.nextToken();
@@ -261,6 +262,7 @@ public class SFTPConnection extends Thread{
 		// No account in arguments
 		if (!tokentizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing argument");
+			return false;
 		}
 
 		String acct = tokentizedSentence.nextToken();
@@ -300,6 +302,7 @@ public class SFTPConnection extends Thread{
 		// No password in arguments
 		if (!tokentizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing argument");
+			return false;
 		}
 		
 		String pass = tokentizedSentence.nextToken();
@@ -343,6 +346,7 @@ public class SFTPConnection extends Thread{
 		// No type in arguments
 		if (!tokentizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing argument");
+			return false;
 		}
 		
 		String type = tokentizedSentence.nextToken().toUpperCase();
@@ -399,6 +403,7 @@ public class SFTPConnection extends Thread{
 		// No type in arguments
 		if (!tokentizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing argument");
+			return false;
 		}
 		
 		mode = tokentizedSentence.nextToken().toUpperCase();
@@ -475,8 +480,7 @@ public class SFTPConnection extends Thread{
 		
 		// check for missing argument
 		if (!tokenizedSentence.hasMoreTokens()) {
-			sendMessage("-Missing argument");
-			
+			sendMessage("-Missing argument");			
 			return false;
 		}
 		
@@ -549,8 +553,7 @@ public class SFTPConnection extends Thread{
 		
 		// check for missing argument
 		if (!tokenizedSentence.hasMoreTokens()) {
-			sendMessage("-Missing argument");
-			
+			sendMessage("-Missing argument");			
 			return false;
 		}
 		
@@ -595,7 +598,6 @@ public class SFTPConnection extends Thread{
 		// check for missing argument
 		if (!tokenizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing argument");
-			
 			return false;
 		}
 		
@@ -650,7 +652,6 @@ public class SFTPConnection extends Thread{
 		// Check for missing argument
 		if (!tokenizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing argument");
-			
 			return false;
 		}
 		
@@ -708,7 +709,6 @@ public class SFTPConnection extends Thread{
 		// Check for missing mode
 		if (!tokenizedSentence.hasMoreTokens()) {
 			sendMessage("-Missing arguments");
-			
 			return false;
 		}
 
@@ -753,7 +753,6 @@ public class SFTPConnection extends Thread{
 		case "APP":
 			if (file.isFile()) {
 				sendMessage("+Will append to file");
-				overwrite = true;
 			} else {
 				sendMessage("+Will create file");
 			}
@@ -801,6 +800,7 @@ public class SFTPConnection extends Thread{
 		
 		sendMessage("+ok, waiting for file");
 		
+		
 		/*		step 3: receive file	*/
 		
 		try {
@@ -811,6 +811,7 @@ public class SFTPConnection extends Thread{
 			
 			return false;
 		}
+		
 		
 		/*		step 4: Confirmation	*/
 		
@@ -1005,6 +1006,11 @@ public class SFTPConnection extends Thread{
 		fileOutStream.close();
 	}
 	
+	/* Sends a file to the client's socket.
+	 * 
+	 * @param	file	The file that wishes to be sent.
+	 * @return	success	Whether the file was sent.
+	 * */
 	private boolean sendFile(File file) {
 		byte[] bytes = new byte[(int) file.length()];
 

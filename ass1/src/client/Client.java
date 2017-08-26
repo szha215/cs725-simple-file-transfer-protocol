@@ -9,12 +9,12 @@ import java.nio.file.*;
 
 public class Client {
 	
-	public static boolean DEBUG = true;
+	public static boolean DEBUG = false;
 	
 	private static final String SERVER_ADDRESS = "localhost";
 	private static final int WELCOME_PORT = 6789;
 	
-	private static final File DEFAULT_DIRECTORY = FileSystems.getDefault().getPath("ClientFolder").toFile().getAbsoluteFile();
+	private static final File DEFAULT_DIRECTORY = FileSystems.getDefault().getPath("res/ClientFolder").toFile().getAbsoluteFile();
 
 	private Socket clientSocket;
 	private DataOutputStream outToServer;
@@ -24,8 +24,6 @@ public class Client {
 	private BufferedInputStream dataInFromServer;
 	private BufferedOutputStream bufferedOutToClient;
 	private DataOutputStream dataOutToServer;
-	
-	private boolean loggedIn = false;
 	
 	Client() throws UnknownHostException, IOException{
 		clientSocket = new Socket(SERVER_ADDRESS, WELCOME_PORT);
@@ -41,7 +39,7 @@ public class Client {
 		dataInFromServer = new BufferedInputStream(clientSocket.getInputStream());
 		
 		// Data out
-		bufferedOutToClient = new BufferedOutputStream(clientSocket.getOutputStream());
+//		bufferedOutToClient = new BufferedOutputStream(clientSocket.getOutputStream());
 		dataOutToServer = new DataOutputStream(clientSocket.getOutputStream());
 	}
 
@@ -61,11 +59,11 @@ public class Client {
 			
 			switch(tokenizedClientSentence.nextToken().toUpperCase()) {
 			case "RETR":
-				retrClientCommand(clientSentence);
+				retrCommand(clientSentence);
 				continue;
 				
 			case "STOR":
-				storClientCommand(clientSentence);
+				storCommand(clientSentence);
 				continue;
 				
 			case "DONE":
@@ -116,15 +114,6 @@ public class Client {
 			// Concatenate char into sentence.
 			sentence = sentence.concat(Character.toString((char)character));
 		}
-		
-		// '!' detected, log in
-		if (sentence.charAt(0) == '!') {
-			loggedIn = true;
-			System.out.println("client logged in");
-		} else if (sentence.charAt(0) == '-') {
-			loggedIn = false;
-			System.out.println("client logged off");
-		}
 
 		return sentence;
 	}
@@ -141,7 +130,7 @@ public class Client {
 		} catch (IOException e) {}
 	}
 
-	private boolean retrClientCommand(String sentence) throws IOException {
+	private boolean retrCommand(String sentence) throws IOException {
 		StringTokenizer tokenizedClientSentence = new StringTokenizer(sentence);
 		tokenizedClientSentence.nextToken();  // Command
 		
@@ -199,7 +188,7 @@ public class Client {
 		return true;
 	}
 	
-	private boolean storClientCommand(String sentence) {
+	private boolean storCommand(String sentence) {
 		StringTokenizer tokenizedClientSentence = new StringTokenizer(sentence);
 		tokenizedClientSentence.nextToken();  // Command
 		tokenizedClientSentence.nextToken();  // Argument (NEW, OLD, APP)
@@ -235,13 +224,10 @@ public class Client {
 		sendMessage(sentence);
 		
 		String serverDecision = readMessage();
+		System.out.println(serverDecision);
 		
 		// Server has denied STOR request
-		if (serverDecision.charAt(0) != '+') {
-			System.out.println(serverDecision);
-			
-			return false;
-		}
+		if (serverDecision.charAt(0) != '+') {return false;}
 		
 		
 		/*		step 2: Send file size	*/
@@ -249,13 +235,10 @@ public class Client {
 		sendMessage(String.format("SIZE %s", String.valueOf(file.length())));
 		
 		serverDecision = readMessage();
+		System.out.println(serverDecision);
 		
 		// Server cannot fit file
-		if (serverDecision.charAt(0) != '+') {
-			System.out.println(serverDecision);
-			
-			return false;
-		}
+		if (serverDecision.charAt(0) != '+') {return false;}
 		
 		/*		step 3: Send file		*/
 		
@@ -265,13 +248,10 @@ public class Client {
 		/*		step 4: Confirmation	*/
 		
 		serverDecision = readMessage();
+		System.out.println(serverDecision);
 		
 		// Server could not save the file
-		if (serverDecision.charAt(0) != '+') {
-			System.out.println(serverDecision);
-			
-			return false;
-		}
+		if (serverDecision.charAt(0) != '+') {return false;}
 		
 		return true;
 	}
@@ -297,6 +277,11 @@ public class Client {
 		fileOutStream.close();
 	}
 	
+	/* Sends a file to the client's socket.
+	 * 
+	 * @param	file	The file that wishes to be sent.
+	 * @return	success	Whether the file was sent.
+	 * */
 	private boolean sendFile(File file) {
 		byte[] bytes = new byte[(int) file.length()];
 
@@ -321,11 +306,14 @@ public class Client {
 	
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
+			return false;
 		} catch (IOException e) {
 			e.printStackTrace();
+			return false;
 		}
 		
-		System.out.println("FILE SENT");
+		if (DEBUG) System.out.println("FILE SENT");
+
 		return true;
 	}
 	
