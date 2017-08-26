@@ -16,7 +16,7 @@ import org.json.simple.*;
 
 public class SFTPConnection extends Thread{
 
-	public static boolean DEBUG = false;
+	public static boolean DEBUG = true;
 	
 	private static final File DEFAULT_DIRECTORY = FileSystems.getDefault().getPath("ServerFolder").toFile().getAbsoluteFile();
 	
@@ -46,14 +46,18 @@ public class SFTPConnection extends Thread{
 		this.connectionSocket = connectionSocket;
 		this.userList = userList;
 		
+		potentialMatches = new ArrayList<JSONObject>();
+		
+		// Messages in/out
 		inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
 		outToClient = new DataOutputStream(connectionSocket.getOutputStream());
 		
+		// Data in
 		dataInFromClient = new BufferedInputStream(connectionSocket.getInputStream());
+		
+		// Data out
 		bufferedOutToClient = new BufferedOutputStream(connectionSocket.getOutputStream());
 		dataOutToClient = new DataOutputStream(bufferedOutToClient);
-		
-		potentialMatches = new ArrayList<JSONObject>();
 	}
 	
 	@Override
@@ -67,7 +71,7 @@ public class SFTPConnection extends Thread{
 
 			// Close thread if connection is closed
 			if (connectionSocket.isClosed()) {
-				System.out.println(String.format("connection to %s CLOSED", connectionSocket.getRemoteSocketAddress().toString()));
+				System.out.println(String.format("Connection to %s closed", connectionSocket.getRemoteSocketAddress().toString()));
 				
 				return;
 			}
@@ -700,6 +704,7 @@ public class SFTPConnection extends Thread{
 			}
 			
 			bufferedInStream.close();
+			fis.close();
 			dataOutToClient.flush();
 	
 		} catch (FileNotFoundException e) {
@@ -716,17 +721,54 @@ public class SFTPConnection extends Thread{
 	private boolean storCommand(String clientSentence) {
 		if (DEBUG) System.out.println("stor command");
 		
-		String filename, clientDecision;
+		StringTokenizer tokenizedSentence = new StringTokenizer(clientSentence);
+		tokenizedSentence.nextToken();  // Command
 		
-		try {
-			filename = clientSentence.substring(5, clientSentence.length());
-		} catch (IndexOutOfBoundsException e) {
-			sendMessage("-Invalid filename");
+		// Check for missing mode
+		if (!tokenizedSentence.hasMoreTokens()) {
+			sendMessage("-Missing arguments");
+			
+			return false;
+		}
+
+		String mode = tokenizedSentence.nextToken().toUpperCase();
+
+		// Check for missing filename
+		if (!tokenizedSentence.hasMoreTokens()) {
+			sendMessage("-Missing arguments");
 			
 			return false;
 		}
 		
+		String filename = tokenizedSentence.nextToken();
 		
+		// Specified file
+		File file = new File(currentDirectory.toString() + "/" + filename);
+		if (DEBUG) System.out.println("File to be written = " + file.toPath().toAbsolutePath().toString());
+
+		
+		switch(mode) {
+		case "NEW":
+			if (file.isFile()) {
+				sendMessage("-File exists, but system doesn't support generations");
+				
+				return false;
+			}
+		
+			
+			break;
+			
+		case "OLD":
+			break;
+			
+		case "APP":
+			break;
+			
+		default:
+			sendMessage("-Invalid mode");
+			
+			return false;
+		}
 		
 		
 		return false;
@@ -897,5 +939,40 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 	
+	/* Receive the file and store it to the default directory. This method overwrites existing file.
+	 * 
+	 * @param	filename	Name of the file to be written to.
+	 * @param	fileSize	Size of the file expected to be received.
+	 * @return	success		Whether file 
+	 * */
+	private boolean receiveFile(String filename, long fileSize, boolean overwrite) throws IOException {
+		File file = new File(DEFAULT_DIRECTORY.getPath().toString() + "/" + filename);
+		FileOutputStream fileOutStream = new FileOutputStream(file, overwrite);
+		BufferedOutputStream bufferedOutStream = new BufferedOutputStream(fileOutStream);
+
+		// Read and write for all bytes
+		for (int i = 0; i < fileSize; i++) {
+			bufferedOutStream.write(dataInFromClient.read());
+		}
+
+		bufferedOutStream.close();
+		fileOutStream.close();
+		
+		return true;
+	}
+	
+	/* Checks if a specified file size in bytes can fit in the current directory.
+	 * 
+	 * @param	fileSize	Size of the file to be stored, long byte.
+	 * @return	canFit		Whether if the file can fit.
+	 * @throw	IOException
+	 * */
+	private boolean fileCanFit(long fileSize) throws IOException {
+		long freeSpace = Files.getFileStore(currentDirectory.toPath().toRealPath()).getUsableSpace();
+		
+		if (fileSize < freeSpace) {return true;}
+		
+		return false;
+	}
 	
 }

@@ -20,19 +20,27 @@ public class Client {
 	private BufferedReader inFromUser;
 	
 	private BufferedInputStream dataInFromServer;
-	private BufferedOutputStream dataOutToServer;
+	private BufferedOutputStream bufferedOutToClient;
+	private DataOutputStream dataOutToServer;
 	
 	private boolean loggedIn = false;
 	
 	Client() throws UnknownHostException, IOException{
+		clientSocket = new Socket(SERVER_ADDRESS, WELCOME_PORT);
+		
+		// User input
 		inFromUser = new BufferedReader(new InputStreamReader(System.in));
 
-		clientSocket = new Socket(SERVER_ADDRESS, WELCOME_PORT);
+		// Messages in/out
 		inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 		outToServer = new DataOutputStream(clientSocket.getOutputStream());
 		
+		// Data in
 		dataInFromServer = new BufferedInputStream(clientSocket.getInputStream());
-		dataOutToServer = new BufferedOutputStream(clientSocket.getOutputStream());
+		
+		// Data out
+		bufferedOutToClient = new BufferedOutputStream(clientSocket.getOutputStream());
+		dataOutToServer = new DataOutputStream(clientSocket.getOutputStream());
 	}
 
 	public void start() throws IOException{
@@ -54,6 +62,10 @@ public class Client {
 				retrClientCommand(clientSentence);
 				continue;
 				
+			case "STOR":
+				storClientCommand(clientSentence);
+				continue;
+				
 			case "DONE":
 				if (readMessage().charAt(0) == '+') {
 					System.out.println("DONE, closing socket");
@@ -72,56 +84,6 @@ public class Client {
 
 		}
 		
-	}
-	
-	private boolean retrClientCommand(String sentence) throws IOException {
-		StringTokenizer tokenizedClientSentence = new StringTokenizer(sentence);
-		tokenizedClientSentence.nextToken();  // Command
-		
-		// check for missing argument
-		if (!tokenizedClientSentence.hasMoreTokens()) {
-			System.err.println("Missing filename");
-			
-			return false;
-		}
-		
-		sendMessage(sentence);
-		
-		String filename = tokenizedClientSentence.nextToken();
-		
-		String serverSentence = readMessage();
-		StringTokenizer tokenizedServerSentence = new StringTokenizer(serverSentence);
-		
-		char first = '\0';
-		first = serverSentence.charAt(0);
-		
-		// File size
-		if (first == ' ') {
-			
-			// Get file size
-			long fileSize = Long.valueOf(tokenizedServerSentence.nextToken());
-			System.out.println(String.format("File size = %d bytes. Type \"SEND\" or \"STOP\"", fileSize));
-			
-			String clientSentence = inFromUser.readLine();
-			
-			if (clientSentence.toUpperCase().equals("SEND")) {
-				sendMessage("SEND");
-			} else {
-				sendMessage(clientSentence);
-				System.out.println(readMessage());  // Server replies "aborted"
-				
-				return false;
-			}
-			
-			// Receive file, append false
-			receiveFile(filename, fileSize, false);
-			System.out.println(String.format("File %s received", filename));
-		} else {
-			System.out.println(serverSentence);
-			return false;
-		}
-		
-		return true;
 	}
 	
 
@@ -172,11 +134,73 @@ public class Client {
 	private void sendMessage(String sentence){
 		try {
 			outToServer.writeBytes(sentence.concat(Character.toString('\0')));
-		} catch (IOException e) {
-//			e.printStackTrace();
+		} catch (IOException e) {}
+	}
+
+	private boolean retrClientCommand(String sentence) throws IOException {
+		StringTokenizer tokenizedClientSentence = new StringTokenizer(sentence);
+		tokenizedClientSentence.nextToken();  // Command
+		
+		// check for missing argument
+		if (!tokenizedClientSentence.hasMoreTokens()) {
+			System.err.println("Missing filename");
+			
+			return false;
 		}
+		
+		sendMessage(sentence);
+		
+		String filename = tokenizedClientSentence.nextToken();
+		
+		String serverSentence = readMessage();
+		StringTokenizer tokenizedServerSentence = new StringTokenizer(serverSentence);
+		
+		char first = '\0';
+		first = serverSentence.charAt(0);
+		
+		// File size
+		if (first == ' ') {
+			
+			// Get file size
+			long fileSize = Long.valueOf(tokenizedServerSentence.nextToken());
+			System.out.println(String.format("File size = %d bytes. Type \"SEND\" or \"STOP\"", fileSize));
+			
+			String clientSentence = inFromUser.readLine();
+			
+			if (clientSentence.toUpperCase().equals("SEND")) {
+				sendMessage("SEND");
+
+			} else if(!fileCanFit(fileSize)){ 
+				System.out.println("Not enough free space to retrieve file.");
+				sendMessage("STOP");
+				System.out.println(readMessage());  // Server replies "aborted"
+				
+				return false;
+
+			} else {
+				sendMessage(clientSentence);
+				System.out.println(readMessage());  // Server replies "aborted"
+				
+				return false;
+			}
+			
+			// Receive file, append false
+			receiveFile(filename, fileSize, false);
+			System.out.println(String.format("File %s received", filename));
+		} else {
+			System.out.println(serverSentence);
+			return false;
+		}
+		
+		return true;
 	}
 	
+	private boolean storClientCommand(String sentence) {
+		sendMessage(sentence);
+		
+		return false;
+	}
+
 	/* Receive the file and store it to the default directory. This method overwrites existing file.
 	 * 
 	 * @param	filename	Name of the file to be written to.
@@ -203,6 +227,21 @@ public class Client {
 		
 		return true;
 	}
+	
+	/* Checks if a specified file size in bytes can fit in the current directory.
+	 * 
+	 * @param	fileSize	Size of the file to be stored, long byte.
+	 * @return	canFit		Whether if the file can fit.
+	 * @throw	IOException
+	 * */
+	private boolean fileCanFit(long fileSize) throws IOException {
+		long freeSpace = Files.getFileStore(DEFAULT_DIRECTORY.toPath().toRealPath()).getUsableSpace();
+		
+		if (fileSize < freeSpace) {return true;}
+		
+		return false;
+	}
+	
 	
 	public static void main(String[] args) throws UnknownHostException, IOException {
 		System.out.println("Starting Client...");
