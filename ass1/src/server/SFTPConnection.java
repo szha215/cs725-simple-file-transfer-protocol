@@ -26,7 +26,6 @@ public class SFTPConnection extends Thread{
 	private DataOutputStream outToClient;
 	
 	private BufferedInputStream dataInFromClient;
-	private BufferedOutputStream bufferedOutToClient;
 	private DataOutputStream dataOutToClient;
 	
 	private JSONArray userList;
@@ -52,17 +51,16 @@ public class SFTPConnection extends Thread{
 		inFromClient = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
 		outToClient = new DataOutputStream(connectionSocket.getOutputStream());
 		
-		// Data in
+		// Data in/out
 		dataInFromClient = new BufferedInputStream(connectionSocket.getInputStream());
-		
-		// Data out
-//		bufferedOutToClient = new BufferedOutputStream();
 		dataOutToClient = new DataOutputStream(connectionSocket.getOutputStream());
 	}
 	
 	@Override
 	public void run() {
 		String clientSentence = "";
+		
+		System.out.println(String.format("Connected to %s", connectionSocket.getRemoteSocketAddress().toString()));
 		
 		// Send greeting 
 		sendMessage("+CS725 SFTP Service");
@@ -486,6 +484,15 @@ public class SFTPConnection extends Thread{
 		
 		newDirName = tokenizedSentence.nextToken();
 		
+		if (newDirName.equals("~")) {
+			currentDirectory = DEFAULT_DIRECTORY;
+			sendMessage(String.format("!Changed working dir to ~"));
+			
+			if (DEBUG) System.out.println("Current dir: " + currentDirectory);
+			
+			return true;
+		}
+		
 		// Add / for directory
 		if (newDirName.charAt(0) != '/') {
 			newDirName = String.format("/%s", newDirName);
@@ -646,6 +653,12 @@ public class SFTPConnection extends Thread{
 	private boolean retrCommand(String clientSentence) {
 		if (DEBUG) System.out.println("retr command");
 		
+		if (!loggedOn()) {
+			sendMessage("-Not logged in");
+			
+			return false;
+		}
+		
 		StringTokenizer tokenizedSentence = new StringTokenizer(clientSentence);
 		tokenizedSentence.nextToken();  // Command
 		
@@ -700,6 +713,12 @@ public class SFTPConnection extends Thread{
 	
 	private boolean storCommand(String clientSentence) {
 		if (DEBUG) System.out.println("stor command");
+		
+		if (!loggedOn()) {
+			sendMessage("-Not logged in");
+			
+			return false;
+		}
 		
 		StringTokenizer tokenizedSentence = new StringTokenizer(clientSentence);
 		tokenizedSentence.nextToken();  // Command

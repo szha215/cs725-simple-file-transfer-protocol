@@ -22,7 +22,6 @@ public class Client {
 	private BufferedReader inFromUser;
 	
 	private BufferedInputStream dataInFromServer;
-	private BufferedOutputStream bufferedOutToClient;
 	private DataOutputStream dataOutToServer;
 	
 	Client() throws UnknownHostException, IOException{
@@ -35,11 +34,8 @@ public class Client {
 		inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 		outToServer = new DataOutputStream(clientSocket.getOutputStream());
 		
-		// Data in
+		// Data in/out
 		dataInFromServer = new BufferedInputStream(clientSocket.getInputStream());
-		
-		// Data out
-//		bufferedOutToClient = new BufferedOutputStream(clientSocket.getOutputStream());
 		dataOutToServer = new DataOutputStream(clientSocket.getOutputStream());
 	}
 
@@ -57,6 +53,7 @@ public class Client {
 			clientSentence = inFromUser.readLine();
 			tokenizedClientSentence = new StringTokenizer(clientSentence);
 			
+			// Other commands are fully server-side controlled
 			switch(tokenizedClientSentence.nextToken().toUpperCase()) {
 			case "RETR":
 				retrCommand(clientSentence);
@@ -69,8 +66,10 @@ public class Client {
 			case "DONE":
 				sendMessage(clientSentence);
 				
-				if (readMessage().charAt(0) == '+') {
-					System.out.println("Closing socket");
+				// Server has acknowledged disconnection
+				serverSentence = readMessage();
+				if (serverSentence.charAt(0) == '+') {
+					System.out.println(serverSentence);
 					clientSocket.close();
 					
 					return;
@@ -83,9 +82,7 @@ public class Client {
 			
 			serverSentence = readMessage();
 			System.out.println(serverSentence);
-
 		}
-		
 	}
 	
 
@@ -156,22 +153,16 @@ public class Client {
 			
 			// Get file size
 			long fileSize = Long.valueOf(tokenizedServerSentence.nextToken());
-			System.out.println(String.format("File size = %d bytes. Type \"SEND\" or \"STOP\"", fileSize));
+			System.out.println(String.format("File size is %d bytes", fileSize));
 			
-			String clientSentence = inFromUser.readLine();
-			
-			if (clientSentence.toUpperCase().equals("SEND")) {
+			// File fits, tell server to send
+			if(fileCanFit(fileSize)){ 
 				sendMessage("SEND");
-
-			} else if(!fileCanFit(fileSize)){ 
-				System.out.println("Not enough free space to retrieve file.");
-				sendMessage("STOP");
-				System.out.println(readMessage());  // Server replies "aborted"
 				
-				return false;
-
+				System.out.println("Waiting for file...");
+				
 			} else {
-				sendMessage(clientSentence);
+				sendMessage("STOP");
 				System.out.println(readMessage());  // Server replies "aborted"
 				
 				return false;
@@ -180,6 +171,7 @@ public class Client {
 			// Receive file, append false
 			receiveFile(filename, fileSize, false);
 			System.out.println(String.format("File %s received", filename));
+			
 		} else {
 			System.out.println(serverSentence);
 			return false;
@@ -195,7 +187,7 @@ public class Client {
 		
 		// check for missing argument
 		if (!tokenizedClientSentence.hasMoreTokens()) {
-			System.err.println("Missing filename");
+			System.err.println("Missing arguments");
 			
 			return false;
 		}
