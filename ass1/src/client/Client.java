@@ -76,27 +76,29 @@ public class Client {
 	
 	private boolean retrClientCommand(String sentence) throws IOException {
 		StringTokenizer tokenizedClientSentence = new StringTokenizer(sentence);
-		tokenizedClientSentence.nextToken();  // RETR command
+		tokenizedClientSentence.nextToken();  // Command
 		
-		String filename = "";
-		
-		if (tokenizedClientSentence.hasMoreTokens()) {
-			filename = tokenizedClientSentence.nextToken();
-		} else {
+		// check for missing argument
+		if (!tokenizedClientSentence.hasMoreTokens()) {
 			System.err.println("Missing filename");
 			
 			return false;
 		}
 		
 		sendMessage(sentence);
+		
+		String filename = tokenizedClientSentence.nextToken();
+		
 		String serverSentence = readMessage();
 		StringTokenizer tokenizedServerSentence = new StringTokenizer(serverSentence);
-		char first = '\0';
 		
+		char first = '\0';
 		first = serverSentence.charAt(0);
 		
+		// File size
 		if (first == ' ') {
 			
+			// Get file size
 			long fileSize = Long.valueOf(tokenizedServerSentence.nextToken());
 			System.out.println(String.format("File size = %d bytes. Type \"SEND\" or \"STOP\"", fileSize));
 			
@@ -110,16 +112,14 @@ public class Client {
 				
 				return false;
 			}
-
 			
-			if (receiveFile(filename, fileSize)) {
-				System.out.println(String.format("File %s received", filename));
-			}
+			// Receive file, append false
+			receiveFile(filename, fileSize, false);
+			System.out.println(String.format("File %s received", filename));
 		} else {
 			System.out.println(serverSentence);
 			return false;
 		}
-		
 		
 		return true;
 	}
@@ -177,9 +177,15 @@ public class Client {
 		}
 	}
 	
-	private boolean receiveFile(String filename, long fileSize) throws IOException {
+	/* Receive the file and store it to the default directory. This method overwrites existing file.
+	 * 
+	 * @param	filename	Name of the file to be written to.
+	 * @param	fileSize	Size of the file expected to be received.
+	 * @return	success		Whether file 
+	 * */
+	private boolean receiveFile(String filename, long fileSize, boolean overwrite) throws IOException {
 		File file = new File(DEFAULT_DIRECTORY.getPath().toString() + "/" + filename);
-		FileOutputStream fileOutStream = new FileOutputStream(file);
+		FileOutputStream fileOutStream = new FileOutputStream(file, overwrite);
 		BufferedOutputStream bufferedOutStream = new BufferedOutputStream(fileOutStream);
 
 		// Read and write for all bytes

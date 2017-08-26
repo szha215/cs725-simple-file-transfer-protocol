@@ -153,7 +153,11 @@ public class SFTPConnection extends Thread{
 			try {
 				character = inFromClient.read();  // Read one character
 			} catch (Exception e) {
-				e.printStackTrace();
+				
+				// Socket closed by client
+				try {
+					connectionSocket.close();
+				} catch (IOException e1) {}
 			}
 			
 			// '\0' detected, return sentence.
@@ -180,7 +184,11 @@ public class SFTPConnection extends Thread{
 		try {
 			outToClient.writeBytes(sentence.concat(Character.toString('\0')));
 		} catch (IOException e) {
-			e.printStackTrace();
+			
+			// Socket closed by client
+			try {
+				connectionSocket.close();
+			} catch (IOException e1) {}
 		}
 	}
 	
@@ -629,7 +637,6 @@ public class SFTPConnection extends Thread{
 		return true;
 	}
 	
-	
 	private boolean retrCommand(String clientSentence) {
 		if (DEBUG) System.out.println("retr command");
 		
@@ -705,7 +712,20 @@ public class SFTPConnection extends Thread{
 	}
 	
 	private boolean storCommand(String clientSentence) {
-		System.out.println("stor command");
+		if (DEBUG) System.out.println("stor command");
+		
+		String filename, clientDecision;
+		
+		try {
+			filename = clientSentence.substring(5, clientSentence.length());
+		} catch (IndexOutOfBoundsException e) {
+			sendMessage("-Invalid filename");
+			
+			return false;
+		}
+		
+		
+		
 		
 		return false;
 	}
