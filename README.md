@@ -2,7 +2,10 @@
 
 John Zhang - szha215 - 8605362
 
-All commands completed.
+All commands completed. Currently runs on `localhost`.
+
+- Multi-client support - The implemented SFTP supports multiple clients, as the server forks a thread.
+- Directory protection - The client cannot change directory to outside of allocated space, i.e. `cdir ..` at the root `~` is not allowed.
 
 ## Run Instructions
 
@@ -13,7 +16,7 @@ All commands completed.
 5. Enter commands in the Client console.
 6. Enter `DONE` when finished with the file transfers.
 
-A couple of screenshots have been provided in `cs725_ass1/docs/`.
+A few screenshots have been provided in `screenshots/`.
 
 ### Logging in
 
@@ -59,7 +62,9 @@ The `$` in examples indicate what the user has typed into console, do not includ
 
 ### Provided file structure
 
+The server and client will run with `res/ServerFolder/` and `res/ClientFolder/` as its default directory respectively.
 
+![](C:\Users\johnz\Desktop\725\git\ass1\docs\03_directory.png)
 
 ## Commands
 
@@ -130,11 +135,27 @@ $ list v
 +
 ./
 ../
-f1/                            25/08/2017 14:27              0       JOHN-XPS\johnz 
-f2/                            26/08/2017 18:56              0       JOHN-XPS\johnz 
-text1.txt                      25/08/2017 16:11             49       JOHN-XPS\johnz 
-text2.txt                      25/08/2017 16:10              2       JOHN-XPS\johnz 
-uoa.png                        30/07/2017 12:10           5300       JOHN-XPS\johnz 
+f1/            25/08/2017 14:27         0     JOHN-XPS\johnz
+f2/            26/08/2017 18:56         0     JOHN-XPS\johnz
+t.txt          26/08/2017 19:57        13     JOHN-XPS\johnz
+text.txt       26/08/2017 19:57        13     JOHN-XPS\johnz
+text1.txt      25/08/2017 16:11        49     JOHN-XPS\johnz
+text2.txt      25/08/2017 16:10         2     JOHN-XPS\johnz
+uoa.png        30/07/2017 12:10      5300     JOHN-XPS\johnz
+```
+
+```bash
+$ list f
++
+./
+../
+f1/ 
+f2/ 
+t.txt 
+text.txt 
+text1.txt 
+text2.txt 
+uoa.png 
 ```
 
 
@@ -166,7 +187,7 @@ Deletes the specified `<filename>` in the current working directory. Requires th
 Example:
 
 ```bash
-$ kill test.txt
+$ kill text.txt
 +test.txt deleted
 ```
 
@@ -194,7 +215,7 @@ Disconnect from server.
 Example:
 
 ```bash
-done
+$ done
 +CS725 closing connection...
 ```
 
@@ -202,23 +223,51 @@ done
 
 ###  `RETR` `<filename>`
 
-Request that the server send the specified file. Requires the user to be logged in.
+Request that the server send the specified file. If the file doesn't fit on the client's system, it will not be sent. Requires the user to be logged in.
+
+Example:
+
+```bash
+$ retr uoa.png
+File size is 5300 bytes
+Waiting for file...
+File uoa.png received
+```
 
 
 
-###  `STOR` `<filename>`
+###  `STOR` ` { NEW | OLD | APP }` `<filename>`
 
+Request the server to receive file `<filename>` with a specific write mode. Requires the user to be logged in.
 
+`NEW` specifies it should try to create a new file. If it already exists, the server will return with `-`, otherwise `+`.
 
+`OLD` specifies that it should overwrite existing file, or make a new file if it doesn't exist. Always return `+`.
 
+`APP` specifies that it should append to existing file, or make a new file if it doesn't exist. Always return `+`.
 
-## Other notable features
+Example:
 
-- The implemented SFTP supports multiple clients, as the server forks a thread.
-- The client cannot change directory to outside of allocated space, i.e. `cdir ..` at the root `~` is not allowed.
+```bash
+$ stor new 301.jpg
++Will create file
++ok, waiting for file
++Saved 301.jpg
+```
 
+```bash
+$ stor old client.txt
++Will create file
++ok, waiting for file
++Saved client.txt
+```
 
-
+```bash
+$ stor app client.txt
++Will append to file
++ok, waiting for file
++Saved client.txt
+```
 
 
 
