@@ -654,6 +654,8 @@ public class SFTPConnection extends Thread{
 			return false;
 		}
 		
+		/*		step 0:	Check file validity	*/
+		
 		String filename = tokenizedSentence.nextToken();
 		
 		// Specified file
@@ -666,6 +668,8 @@ public class SFTPConnection extends Thread{
 			
 			return false;
 		}
+		
+		/*		step 1:	send file size	*/
 		
 		// Get file size
 		long fileSize = file.length();
@@ -686,34 +690,9 @@ public class SFTPConnection extends Thread{
 			return false;
 		}
 		
-		byte[] bytes = new byte[(int) fileSize];
-
-		try {
-			FileInputStream fis = new FileInputStream(file);
-			BufferedInputStream bufferedInStream = new BufferedInputStream(new FileInputStream(file));
-			
-			if (DEBUG) System.out.println("Total file size to read (in bytes) : " + fis.available());
-
-			int content = 0;
-			
-			// Read and send file until the whole file has been sent
-			while ((content = bufferedInStream.read(bytes)) >= 0) {
-				dataOutToClient.write(bytes, 0, content);
-
-				if (DEBUG) System.out.println(content);
-			}
-			
-			bufferedInStream.close();
-			fis.close();
-			dataOutToClient.flush();
-	
-		} catch (FileNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		/*		step 2:	send file		*/
 		
-		if (DEBUG) System.out.println("FILE SENT");
+		sendFile(file);
 		
 		return true;
 	}
@@ -939,14 +918,14 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 	
-	/* Receive the file and store it to the default directory. This method overwrites existing file.
+	/* Receive the file and store it to the current directory. 
 	 * 
-	 * @param	filename	Name of the file to be written to.
+	 * @param	file		File to be written to.
 	 * @param	fileSize	Size of the file expected to be received.
-	 * @return	success		Whether file 
+	 * @param	overwrite	Overwrites or append to file.
+	 * @throw	IOException
 	 * */
-	private boolean receiveFile(String filename, long fileSize, boolean overwrite) throws IOException {
-		File file = new File(DEFAULT_DIRECTORY.getPath().toString() + "/" + filename);
+	private void receiveFile(File file, long fileSize, boolean overwrite) throws IOException {
 		FileOutputStream fileOutStream = new FileOutputStream(file, overwrite);
 		BufferedOutputStream bufferedOutStream = new BufferedOutputStream(fileOutStream);
 
@@ -957,7 +936,37 @@ public class SFTPConnection extends Thread{
 
 		bufferedOutStream.close();
 		fileOutStream.close();
+	}
+	
+	private boolean sendFile(File file) {
+		byte[] bytes = new byte[(int) file.length()];
+
+		try {
+			FileInputStream fis = new FileInputStream(file);
+			BufferedInputStream bufferedInStream = new BufferedInputStream(new FileInputStream(file));
+			
+			if (DEBUG) System.out.println("Total file size to read (in bytes) : " + fis.available());
+
+			int content = 0;
+			
+			// Read and send file until the whole file has been sent
+			while ((content = bufferedInStream.read(bytes)) >= 0) {
+				dataOutToClient.write(bytes, 0, content);
+
+				if (DEBUG) System.out.println(content);
+			}
+			
+			bufferedInStream.close();
+			fis.close();
+			dataOutToClient.flush();
+	
+		} catch (FileNotFoundException e) {
+			return false;
+		} catch (IOException e) {
+			return false;
+		}
 		
+		if (DEBUG) System.out.println("FILE SENT");
 		return true;
 	}
 	

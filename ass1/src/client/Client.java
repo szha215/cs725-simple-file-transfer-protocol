@@ -9,6 +9,8 @@ import java.nio.file.*;
 
 public class Client {
 	
+	public static boolean DEBUG = true;
+	
 	private static final String SERVER_ADDRESS = "localhost";
 	private static final int WELCOME_PORT = 6789;
 	
@@ -67,8 +69,10 @@ public class Client {
 				continue;
 				
 			case "DONE":
+				sendMessage(clientSentence);
+				
 				if (readMessage().charAt(0) == '+') {
-					System.out.println("DONE, closing socket");
+					System.out.println("Closing socket");
 					clientSocket.close();
 					
 					return;
@@ -196,18 +200,89 @@ public class Client {
 	}
 	
 	private boolean storClientCommand(String sentence) {
+		StringTokenizer tokenizedClientSentence = new StringTokenizer(sentence);
+		tokenizedClientSentence.nextToken();  // Command
+		
+		// check for missing argument
+		if (!tokenizedClientSentence.hasMoreTokens()) {
+			System.err.println("Missing filename");
+			
+			return false;
+		}
+		
+		/*		step 0:	Check file validity	*/
+		
+		String filename = tokenizedClientSentence.nextToken();
+		
+		// Specified file
+		File file = new File(DEFAULT_DIRECTORY.toString() + "/" + filename);
+		if (DEBUG) System.out.println("File of interest = " + file.toPath().toAbsolutePath().toString());
+		
+		// Specified file is not a file
+		if (!file.isFile()) {
+			System.out.println("File doesn't exist");
+			return false;
+			
+		} else if (!file.canRead()) {
+			System.out.println("File cannot be read");
+			return false;
+		}
+		
+		
+		/*		step 1:	STOR request	*/
+		
 		sendMessage(sentence);
 		
-		return false;
+		String serverDecision = readMessage();
+		
+		// Server has denied STOR request
+		if (serverDecision.charAt(0) != '+') {
+			System.out.println(serverDecision);
+			
+			return false;
+		}
+		
+		
+		/*		step 2: send file size	*/
+		
+		sendMessage(String.format("SIZE %s", String.valueOf(file.length())));
+		
+		serverDecision = readMessage();
+		
+		// Server cannot fit file
+		if (serverDecision.charAt(0) != '+') {
+			System.out.println(serverDecision);
+			
+			return false;
+		}
+		
+		/*		step 3: send file		*/
+		
+		sendFile(file);
+		
+		
+		/*		step 4: confirmation	*/
+		
+		serverDecision = readMessage();
+		
+		// Server could not save the file
+		if (serverDecision.charAt(0) != '+') {
+			System.out.println(serverDecision);
+			
+			return false;
+		}
+		
+		return true;
 	}
 
 	/* Receive the file and store it to the default directory. This method overwrites existing file.
 	 * 
 	 * @param	filename	Name of the file to be written to.
 	 * @param	fileSize	Size of the file expected to be received.
-	 * @return	success		Whether file 
+	 * @param	overwrite	Overwrites or append to file.
+	 * @throw	IOException
 	 * */
-	private boolean receiveFile(String filename, long fileSize, boolean overwrite) throws IOException {
+	private void receiveFile(String filename, long fileSize, boolean overwrite) throws IOException {
 		File file = new File(DEFAULT_DIRECTORY.getPath().toString() + "/" + filename);
 		FileOutputStream fileOutStream = new FileOutputStream(file, overwrite);
 		BufferedOutputStream bufferedOutStream = new BufferedOutputStream(fileOutStream);
@@ -219,12 +294,37 @@ public class Client {
 
 		bufferedOutStream.close();
 		fileOutStream.close();
-		
-		return true;
 	}
 	
-	private boolean sendFile(long fileSize) {
+	private boolean sendFile(File file) {
+		byte[] bytes = new byte[(int) file.length()];
+
+		try {
+			FileInputStream fis = new FileInputStream(file);
+			BufferedInputStream bufferedInStream = new BufferedInputStream(new FileInputStream(file));
+			
+			if (DEBUG) System.out.println("Total file size to read (in bytes) : " + fis.available());
+
+			int content = 0;
+			
+			// Read and send file until the whole file has been sent
+			while ((content = bufferedInStream.read(bytes)) >= 0) {
+				dataOutToServer.write(bytes, 0, content);
+
+				if (DEBUG) System.out.println(content);
+			}
+			
+			bufferedInStream.close();
+			fis.close();
+			dataOutToServer.flush();
+	
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 		
+		System.out.println("FILE SENT");
 		return true;
 	}
 	
