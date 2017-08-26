@@ -640,15 +640,17 @@ public class SFTPConnection extends Thread{
 	private boolean retrCommand(String clientSentence) {
 		if (DEBUG) System.out.println("retr command");
 		
-		String filename, clientDecision;
+		StringTokenizer tokenizedSentence = new StringTokenizer(clientSentence);
+		tokenizedSentence.nextToken();  // Command
 		
-		try {
-			filename = clientSentence.substring(5, clientSentence.length());
-		} catch (IndexOutOfBoundsException e) {
-			sendMessage("-Invalid filename");
+		// Check for missing argument
+		if (!tokenizedSentence.hasMoreTokens()) {
+			sendMessage("-Missing argument");
 			
 			return false;
 		}
+		
+		String filename = tokenizedSentence.nextToken();
 		
 		// Specified file
 		File file = new File(currentDirectory.toString() + "/" + filename);
@@ -665,7 +667,7 @@ public class SFTPConnection extends Thread{
 		long fileSize = file.length();
 		sendMessage(String.format(" %s", String.valueOf(fileSize)));
 
-		clientDecision = readMessage().toUpperCase();
+		String clientDecision = readMessage().toUpperCase();
 
 		// Client no longer wants the file
 		if (clientDecision.equals("STOP")) {
