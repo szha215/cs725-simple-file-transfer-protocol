@@ -137,10 +137,17 @@ public class Client {
 			
 			return false;
 		}
+
+		String filename = tokenizedClientSentence.nextToken();
+		
+		// Directory in filenames are not allowed
+		if (filename.indexOf('/') != -1 || filename.indexOf('\\') != -1) {
+			System.err.println("Invalid filename");
+			
+			return false;
+		}
 		
 		sendMessage(sentence);
-		
-		String filename = tokenizedClientSentence.nextToken();
 		
 		String serverSentence = readMessage();
 		StringTokenizer tokenizedServerSentence = new StringTokenizer(serverSentence);
@@ -195,6 +202,13 @@ public class Client {
 		/*		step 0:	Check file validity	*/
 		
 		String filename = tokenizedClientSentence.nextToken();
+		
+		// Directory in filenames are not allowed
+		if (filename.indexOf('/') != -1 || filename.indexOf('\\') != -1) {
+			System.err.println("Invalid filename");
+			
+			return false;
+		}
 		
 		// Specified file
 		File file = new File(DEFAULT_DIRECTORY.toString() + "/" + filename);

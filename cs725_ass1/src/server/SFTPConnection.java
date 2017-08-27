@@ -484,13 +484,11 @@ public class SFTPConnection extends Thread{
 		
 		newDirName = tokenizedSentence.nextToken();
 		
-		if (newDirName.equals("~")) {
+		// Directory is relative to root
+		if (newDirName.charAt(0) == '~') {
+			newDirName = newDirName.replaceAll("~", "/");
+
 			currentDirectory = DEFAULT_DIRECTORY;
-			sendMessage(String.format("!Changed working dir to ~"));
-			
-			if (DEBUG) System.out.println("Current dir: " + currentDirectory);
-			
-			return true;
 		}
 		
 		// Add / for directory

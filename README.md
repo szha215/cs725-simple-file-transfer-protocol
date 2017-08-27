@@ -10,13 +10,52 @@ All commands completed. Currently runs on `localhost`.
 ## Run Instructions
 
 1. Open Eclipse.
+
 2. Import Existing General Project `cs725_ass1`.
+
+   ![00_import_button](C:\Users\johnz\Desktop\725\git\screenshots\00_import_button.png)
+
+   ​
+
+   ![01_import_project_1](C:\Users\johnz\Desktop\725\git\screenshots\01_import_project_1.png)
+
+   ![01_import_project_2](C:\Users\johnz\Desktop\725\git\screenshots\01_import_project_2.png)
+
+   ​
+
+   ​
+
+   ​
+
+   ​
+
 3. Run `server.Server`.
+
+   ![02_run_server](C:\Users\johnz\Desktop\725\git\screenshots\02_run_server.png)
+
+   ​
+
+   ​
+
 4. Run `client.Client`.
+
+   ![03_run_client](C:\Users\johnz\Desktop\725\git\screenshots\03_run_client.png)
+
+   ​
+
+   ​
+
 5. Enter commands in the Client console.
+
+   ![04_both_running](C:\Users\johnz\Desktop\725\git\screenshots\04_both_running.png)
+
+   ​
+
+   ​
+
 6. Enter `DONE` when finished with the file transfers.
 
-A few screenshots have been provided in `screenshots/`.
+Screenshots are in `screenshots/`.
 
 ### Logging in
 
@@ -60,11 +99,13 @@ The `$` in examples indicate what the user has typed into console, do not includ
 
 
 
-### Provided file structure
+### Provided directory structure
 
-The server and client will run with `res/ServerFolder/` and `res/ClientFolder/` as its default directory respectively.
+The server and client will run with `res/ServerFolder/` and `res/ClientFolder/` as its default directory respectively. All client retrieved files go to its default directory, while server stored files can go to any sub-directory in its default directory.
 
-![](C:\Users\johnz\Desktop\725\git\ass1\docs\03_directory.png)
+![00_directory](C:\Users\johnz\Desktop\725\git\screenshots\00_directory.png)
+
+
 
 ## Commands
 
@@ -75,7 +116,7 @@ The server and client will run with `res/ServerFolder/` and `res/ClientFolder/` 
 Example:
 
 ```bash
-$ user AA
+$ USER AA
 +User-id valid, send account and password
 ```
 
@@ -88,7 +129,7 @@ The account you want to use to access the SFTP server.
 Example:
 
 ```bash
-$ acct aa
+$ ACCT aa
 +Account valid, send password
 ```
 
@@ -101,11 +142,13 @@ The password associated with your account, can be sent prior to `ACCT`.
 Example:
 
 ```bash
-$ pass 11
+$ PASS 11
 ! Logged in
 ```
 
 
+
+Since multiple accounts may share the same password, entering either `ACCT bb` or `ACCT dd` after `PASS 22` can log in.
 
 ###  `TYPE` `{ A | B | C }`
 
@@ -114,7 +157,7 @@ Changes the mapping of the stored file and transmission byte stream, default is 
 Example:
 
 ```bash
-$ type c
+$ TYPE C
 +Using Continuous mode
 ```
 
@@ -128,10 +171,12 @@ Lists all files and folders in `<directory>`. If `<directory>` is not specified,
 
 `V` specifies a verbose directory listing, including filenames, last modified date/time, file size in bytes and the owner of the file.
 
-Example:
+Examples:
+
+Listing the current directory in verbose mode:
 
 ```bash
-$ list v
+$ LIST V
 +
 ./
 ../
@@ -144,18 +189,18 @@ text2.txt      25/08/2017 16:10         2     JOHN-XPS\johnz
 uoa.png        30/07/2017 12:10      5300     JOHN-XPS\johnz
 ```
 
+
+
+Listing `f1/` sub-directory in non-verbose mode:
+
 ```bash
-$ list f
+$ LIST F f1
 +
 ./
 ../
-f1/ 
-f2/ 
-t.txt 
-text.txt 
-text1.txt 
-text2.txt 
-uoa.png 
+f11/ 
+f12/ 
+text11.txt 
 ```
 
 
@@ -164,19 +209,38 @@ uoa.png
 
 Changes the current working directory. Changing the directory to somewhere out of allocated directory is not allowed. If the user is not logged in, the server will prompt the user to log in.
 
+Directory can be relative to `~`.
+
 Example:
 
-```bash
-$ cdir f1
-!Changed working dir to ~\f1
-```
+Changing directory to `f2/`:
 
 ```bash
-$ cdir ~
+$ CDIR f2
+!Changed working dir to ~\f2
+```
+
+
+
+Changing directory using `~`, from `~/f2` to `~/f1/f12/` :
+
+```bash
+$ CDIR ~/f1/f12
+!Changed working dir to ~\f1\f12
+```
+
+
+
+Changing directory to `~`, and attempting to go up one level:
+
+```bash
+$ CDIR ~
 !Changed working dir to ~
-$ cdir ..
+$ CDIR ..
 -Can't connect to directory because permission denied
 ```
+
+
 
 
 
@@ -187,7 +251,7 @@ Deletes the specified `<filename>` in the current working directory. Requires th
 Example:
 
 ```bash
-$ kill text.txt
+$ KILL text.txt
 +test.txt deleted
 ```
 
@@ -199,10 +263,12 @@ Renames `<filename>`. If server responds with `+`, the user should reply with `T
 
 Example:
 
+Changing the filename of `t.txt` to `t2.txt`:
+
 ```bash
-$ name t.txt
+$ NAME t.txt
 +File exists
-$ tobe t2.txt
+$ TOBE t2.txt
 +t.txt renamed to t2.txt
 ```
 
@@ -215,7 +281,7 @@ Disconnect from server.
 Example:
 
 ```bash
-$ done
+$ DONE
 +CS725 closing connection...
 ```
 
@@ -227,11 +293,22 @@ Request that the server send the specified file. If the file doesn't fit on the 
 
 Example:
 
+Retrieving `uoa.png` from server:
+
 ```bash
-$ retr uoa.png
+$ RETR uoa.png
 File size is 5300 bytes
 Waiting for file...
 File uoa.png received
+```
+
+
+
+Directory within `<filename>` is not allowed:
+
+```bash
+$ RETR f1/text11.txt
+Invalid filename
 ```
 
 
@@ -246,24 +323,36 @@ Request the server to receive file `<filename>` with a specific write mode. Requ
 
 `APP` specifies that it should append to existing file, or make a new file if it doesn't exist. Always return `+`.
 
+Directory within `<filename>` is not allowed.
+
 Example:
 
+Store `301.jpg` (2.5MB+ file) to server in mode NEW:
+
 ```bash
-$ stor new 301.jpg
+$ STOR NEW 301.jpg
 +Will create file
 +ok, waiting for file
 +Saved 301.jpg
 ```
 
+
+
+Store `client.txt` to server, overwriting old:
+
 ```bash
-$ stor old client.txt
+$ STOR OLD client.txt
 +Will create file
 +ok, waiting for file
 +Saved client.txt
 ```
 
+
+
+Append `client.txt` to server:
+
 ```bash
-$ stor app client.txt
+$ STOR APP client.txt
 +Will append to file
 +ok, waiting for file
 +Saved client.txt
