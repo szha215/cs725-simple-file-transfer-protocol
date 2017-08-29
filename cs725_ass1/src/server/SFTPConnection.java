@@ -136,15 +136,10 @@ public class SFTPConnection extends Thread{
 
 		}
 	}
-	
-	public boolean loggedOn() {
-		return loggedIn;
-	}
 
 	/* Reads one character at a time into a buffer, return the buffer when '\0' 
 	 * is received. Blocking until '\0' has been received.
 	 * 
-	 * @param	buffer		The BufferedReader object associated with the socket.
 	 * @return	sentence	Complete message String, without the '\0' character.
 	 * */
 	private String readMessage() {
@@ -194,6 +189,13 @@ public class SFTPConnection extends Thread{
 		}
 	}
 	
+	// Whether the current client is logged in
+	public boolean loggedOn() {
+		return loggedIn;
+	}
+
+
+	// Current client log in
 	private void logOn() {
 		if (DEBUG) System.out.println("logging on");
 
@@ -204,6 +206,7 @@ public class SFTPConnection extends Thread{
 		loggedIn = true;
 	}
 	
+	// Current client log iff
 	private void logOff() {
 		if (DEBUG) System.out.println("logging off");
 
@@ -214,9 +217,10 @@ public class SFTPConnection extends Thread{
 		loggedIn = false;
 	}
 
+	// UESR command
 	private boolean userCommand(String clientSentence) {
 		StringTokenizer tokentizedSentence = new StringTokenizer(clientSentence);
-		tokentizedSentence.nextToken();  // Command
+		tokentizedSentence.nextToken();  // Remove the first argument (command name)
 		
 		// No username in arguments
 		if (!tokentizedSentence.hasMoreTokens()) {
@@ -235,9 +239,13 @@ public class SFTPConnection extends Thread{
         	
         	// Match found
         	if (user.get("userId").equals(userId.trim())) {
+
+        		// Special user - admin, log in immediately
         		if (user.get("account").equals("") && user.get("password").equals("")) {
         			logOn();
         			sendMessage(String.format("!%s logged in", userId));
+
+        		// User exists, need account and password
         		} else {
         			sendMessage("+User-id valid, send account and password");
         		}
@@ -251,6 +259,7 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 
+	// ACCT command
 	private boolean acctCommand(String clientSentence, boolean reply) {
 		if (DEBUG) System.out.println("acct command");
 		
@@ -291,6 +300,7 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 	
+	// PASS command
 	private boolean passCommand(String clientSentence, boolean reply) {
 		if (DEBUG) System.out.println("pass command");
 		
@@ -307,20 +317,25 @@ public class SFTPConnection extends Thread{
 		
 		// Account has been previously sent and checked
 		if (accountAuthenticated) {
+
+			// If the provided password matches the account(s) previously checked
 			if (passForAcct(pass)) {
 				logOn();
 				if (reply) sendMessage("! Logged in");
 				
 				return true;
+
+			// Password doesn't match previously checked account(s)
 			} else {
 				if (reply) sendMessage("-Wrong password, try again");		
 			}
 			
-		// Password doesn't belong to any account
+		// Password belong to account(s)
 		} else if (passExists(pass) > 0) {
 			if (reply) sendMessage("+Send account");
 			passwordAuthenticated = true;
 
+		// Password doesn't belong to any account
 		} else {
 			if (reply) sendMessage("-Wrong password, try again");
 		}
@@ -329,12 +344,12 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 	
+	// TYPE command
 	private boolean typeCommand(String clientSentence) {
 		if (DEBUG) System.out.println("type command");
 		
 		if (!loggedOn()) {
 			sendMessage("-Not logged in");
-			
 			return false;
 		}
 		
@@ -349,6 +364,7 @@ public class SFTPConnection extends Thread{
 		
 		String type = tokentizedSentence.nextToken().toUpperCase();
 		
+		// Invalid type
 		if (!type.equals("A") && !type.equals("B") && !type.equals("C")) {
 			sendMessage("-Invalid arguments");
 			
@@ -377,10 +393,10 @@ public class SFTPConnection extends Thread{
 		
 		sendMessage(String.format("+Using %s mode", reply));
 		
-		
 		return true;
 	}
 
+	// LIST command
 	private boolean listCommand(String clientSentence) {
 		if (DEBUG) System.out.println("list command");
 		
@@ -406,17 +422,18 @@ public class SFTPConnection extends Thread{
 		
 		mode = tokentizedSentence.nextToken().toUpperCase();
 		
+		// Invalid mode
 		if (!mode.equals("F") && !mode.equals("V")) {
-			sendMessage("-Invalid arguments");
-			
 			if (DEBUG) System.out.println("`" + mode + "`");
 			
+			sendMessage("-Invalid arguments");
 			return false;
 		}
-			
+		
 		try {
 			path = new File(currentDirectory.toString() + "/" + tokentizedSentence.nextToken());
 			
+			// Requested directory doesn't exist
 			if (!path.isDirectory()) {
 				sendMessage(String.format("-Not a directory"));
 				
@@ -435,17 +452,19 @@ public class SFTPConnection extends Thread{
 		for (File f : files) {
 			String filename = f.getName();
 			
+			// Append / to directories
 			if (f.isDirectory()) {
 				filename = filename.concat("/");
 			}
 			
-			// verbose, get information on the file
+			// Verbose, get information on the file
 			if (mode.equals("V")) {
 				long modifiedTime = f.lastModified();
 				String modifiedDate = dateFormat.format(new Date(modifiedTime));
 				String size = String.valueOf(f.length());
 				String owner = "";
 
+				// Get file owner's name
 				try {
 					 FileOwnerAttributeView attr = Files.getFileAttributeView(f.toPath(), FileOwnerAttributeView.class);
 					 owner = attr.getOwner().getName();
@@ -456,7 +475,7 @@ public class SFTPConnection extends Thread{
 				// print structure:   filename   modified time    size    owner
 				outputList = outputList.concat(String.format("%-30s %-20s %10s %20s \r\n", filename, modifiedDate, size, owner));
 			
-			// non verbose, filename only
+			// Non verbose, filename only
 			} else {
 				outputList = outputList.concat(String.format("%s \r\n", filename));
 			}
@@ -467,6 +486,7 @@ public class SFTPConnection extends Thread{
 		return true;
 	}
 	
+	// CDIR command
 	private boolean cdirCommand(String clientSentence) {
 		if (DEBUG) System.out.println("cdir command");
 		if (DEBUG) System.out.println("Current dir: " + currentDirectory.toString());
@@ -484,7 +504,7 @@ public class SFTPConnection extends Thread{
 		
 		newDirName = tokenizedSentence.nextToken();
 		
-		// Directory is relative to root
+		// Directory is relative to root, set current dir to default, then append requested dir
 		if (newDirName.charAt(0) == '~') {
 			newDirName = newDirName.replaceAll("~", "/");
 
@@ -517,6 +537,7 @@ public class SFTPConnection extends Thread{
 		}
 		
 		// Replace portion of the path to ~
+		// Client doesn't need to know the absolute directory on the server
 		String newDirReply = String.format("~%s", newDir.toString().substring(DEFAULT_DIRECTORY.toString().length()));
 		
 		// Already logged in
@@ -544,6 +565,7 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 	
+	// KILL command
 	private boolean killCommand(String clientSentence) {
 		if (DEBUG) System.out.println("kill command");
 		
@@ -572,6 +594,7 @@ public class SFTPConnection extends Thread{
 		
 		Path path = new File(currentDirectory.toString().concat("/").concat(filename)).toPath();
 		
+		// Delete the file
 		try {
 			Files.delete(path);
 			sendMessage(String.format("+%s deleted", filename));
@@ -588,6 +611,7 @@ public class SFTPConnection extends Thread{
 		return false;
 	}
 	
+	// NAME command
 	private boolean nameCommand(String clientSentence) {
 		if (DEBUG) System.out.println("name command");
 		
@@ -648,6 +672,7 @@ public class SFTPConnection extends Thread{
 		return true;
 	}
 	
+	// RETR command
 	private boolean retrCommand(String clientSentence) {
 		if (DEBUG) System.out.println("retr command");
 		
@@ -695,7 +720,7 @@ public class SFTPConnection extends Thread{
 			
 			return false;
 
-		// Client sent other unwanted replies
+		// Client sent unwanted replies
 		} else if (!clientDecision.equals("SEND")) {
 			sendMessage("-Invalid response");
 			
@@ -709,6 +734,7 @@ public class SFTPConnection extends Thread{
 		return true;
 	}
 	
+	// STOR command
 	private boolean storCommand(String clientSentence) {
 		if (DEBUG) System.out.println("stor command");
 		
@@ -789,14 +815,14 @@ public class SFTPConnection extends Thread{
 		tokenizedSentence = new StringTokenizer(clientDecision);
 		
 		if (!tokenizedSentence.nextToken().equals("SIZE")) {
-			System.out.println("Step 2: no SIZE");
+			if(DEBUG) System.out.println("Step 2: no SIZE");
 			sendMessage("-Invalid argument");
 			
 			return false;
 		}
 		
 		if (!tokenizedSentence.hasMoreTokens()) {
-			System.out.println("Step 2: no size value");
+			if(DEBUG) System.out.println("Step 2: no size value");
 			sendMessage("-Missing file size");
 			
 			return false;
@@ -804,6 +830,7 @@ public class SFTPConnection extends Thread{
 		
 		long fileSize = Long.parseLong(tokenizedSentence.nextToken());
 		
+		// File doesn't fit on server
 		try {
 			if (!fileCanFit(fileSize)) {
 				sendMessage("-Not enough room, don't send it");
@@ -820,6 +847,7 @@ public class SFTPConnection extends Thread{
 		
 		/*		step 3: receive file	*/
 		
+		// Receive the file
 		try {
 			receiveFile(file, fileSize, overwrite);
 		} catch (IOException e) {
@@ -841,8 +869,8 @@ public class SFTPConnection extends Thread{
 	/*********************************** Helper Methods *****************************************/
 	
 	
-	
-	/* Authenticate client for CDIR command.
+	/* Authenticate client for CDIR command. Since the protocol requires
+	 * specific replies, this block of repeated code has to exist...
 	 * 
 	 * @return	authenticated	Whether authentication was successful
 	 * */

@@ -6,7 +6,6 @@ import java.util.*;
 import java.nio.file.*;
 
 
-
 public class Client {
 	
 	public static boolean DEBUG = false;
@@ -67,6 +66,7 @@ public class Client {
 				sendMessage(clientSentence);
 				
 				// Server has acknowledged disconnection
+				// There should really be a timeout check here
 				serverSentence = readMessage();
 				if (serverSentence.charAt(0) == '+') {
 					System.out.println(serverSentence);

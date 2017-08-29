@@ -6,6 +6,7 @@ All commands completed. Currently runs on `localhost`.
 
 - Multi-client support - The implemented SFTP supports multiple clients, as the server forks a thread.
 - Directory protection - The client cannot change directory to outside of allocated space, i.e. `cdir ..` at the root `~` is not allowed.
+- Messages between server/client terminate with NULL, not CRLF, as specified in the protocol.
 
 ## Run Instructions
 
@@ -13,13 +14,13 @@ All commands completed. Currently runs on `localhost`.
 
 2. Import Existing General Project `cs725_ass1`.
 
-   ![00_import_button](C:\Users\johnz\Desktop\725\git\screenshots\00_import_button.png)
+   ![00_import_button](.\screenshots\00_import_button.png)
 
    ​
 
-   ![01_import_project_1](C:\Users\johnz\Desktop\725\git\screenshots\01_import_project_1.png)
+   ![01_import_project_1](.\screenshots\01_import_project_1.png)
 
-   ![01_import_project_2](C:\Users\johnz\Desktop\725\git\screenshots\01_import_project_2.png)
+   ![01_import_project_2](.\screenshots\01_import_project_2.png)
 
    ​
 
@@ -31,7 +32,7 @@ All commands completed. Currently runs on `localhost`.
 
 3. Run `server.Server`.
 
-   ![02_run_server](C:\Users\johnz\Desktop\725\git\screenshots\02_run_server.png)
+   ![02_run_server](.\screenshots\02_run_server.png)
 
    ​
 
@@ -39,7 +40,7 @@ All commands completed. Currently runs on `localhost`.
 
 4. Run `client.Client`.
 
-   ![03_run_client](C:\Users\johnz\Desktop\725\git\screenshots\03_run_client.png)
+   ![03_run_client](.\screenshots\03_run_client.png)
 
    ​
 
@@ -47,7 +48,7 @@ All commands completed. Currently runs on `localhost`.
 
 5. Enter commands in the Client console.
 
-   ![04_both_running](C:\Users\johnz\Desktop\725\git\screenshots\04_both_running.png)
+   ![04_both_running](.\screenshots\04_both_running.png)
 
    ​
 
@@ -55,7 +56,7 @@ All commands completed. Currently runs on `localhost`.
 
 6. Enter `DONE` when finished with the file transfers.
 
-Screenshots are in `screenshots/`.
+Full size screenshots are in `screenshots/`.
 
 ### Logging in
 
@@ -103,7 +104,7 @@ The `$` in examples indicate what the user has typed into console, do not includ
 
 The server and client will run with `res/ServerFolder/` and `res/ClientFolder/` as its default directory respectively. All client retrieved files go to its default directory, while server stored files can go to any sub-directory in its default directory.
 
-![00_directory](C:\Users\johnz\Desktop\725\git\screenshots\00_directory.png)
+![00_directory](.\screenshots\00_directory.png)
 
 
 
@@ -222,7 +223,7 @@ $ CDIR f2
 
 
 
-Changing directory using `~`, from `~/f2` to `~/f1/f12/` :
+Changing directory relative to `~`, from `~/f2` to `~/f1/f12/` :
 
 ```bash
 $ CDIR ~/f1/f12
